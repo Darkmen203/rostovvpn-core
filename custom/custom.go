@@ -45,8 +45,8 @@ func parse(path *C.char, tempPath *C.char, debug bool) (CErr *C.char) {
 	return emptyOrErrorC(err)
 }
 
-//export changeHiddifyOptions
-func changeHiddifyOptions(HiddifyOptionsJson *C.char) (CErr *C.char) {
+//export changeRostovvpnOptions
+func changeRostovvpnOptions(HiddifyOptionsJson *C.char) (CErr *C.char) {
 	_, err := v2.ChangeHiddifySettings(&pb.ChangeHiddifySettingsRequest{
 		HiddifySettingsJson: C.GoString(HiddifyOptionsJson),
 	})
