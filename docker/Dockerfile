@@ -15,9 +15,9 @@ RUN echo "architecture: $(apk --print-arch)" && \
             s390x) ARCH=s390x ;; \
             *) echo "Unsupported architecture: $(apk --print-arch) $(uname -m)" && exit 1 ;; \
         esac && \
-        echo "Downloading https://github.com/hiddify/hiddify-core/releases/download/${VERSION}/hiddify-cli-linux-$ARCH.tar.gz" && \
-        curl -L -o hiddify-cli.tar.gz https://github.com/hiddify/hiddify-core/releases/download/${VERSION}/hiddify-cli-linux-$ARCH.tar.gz && \
-        tar -xzf hiddify-cli.tar.gz && rm hiddify-cli.tar.gz
+        echo "Downloading https://github.com/Darkmen203/rostovvpn-core/releases/download/${VERSION}/rostovvpn-cli-linux-$ARCH.tar.gz" && \
+        curl -L -o rostovvpn-cli.tar.gz https://github.com/Darkmen203/rostovvpn-core/releases/download/${VERSION}/rostovvpn-cli-linux-$ARCH.tar.gz && \
+        tar -xzf rostovvpn-cli.tar.gz && rm rostovvpn-cli.tar.gz
 COPY hiddify.sh .
 RUN chmod +x hiddify.sh
 

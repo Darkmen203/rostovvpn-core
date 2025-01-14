@@ -3,8 +3,8 @@ package v2
 import (
 	"context"
 
-	"github.com/hiddify/hiddify-core/config"
-	pb "github.com/hiddify/hiddify-core/hiddifyrpc"
+	"github.com/Darkmen203/rostovvpn-core/config"
+	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
 )
 
 func (s *CoreService) GenerateWarpConfig(ctx context.Context, in *pb.GenerateWarpConfigRequest) (*pb.WarpGenerationResponse, error) {

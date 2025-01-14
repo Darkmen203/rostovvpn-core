@@ -3,10 +3,10 @@ package extension
 import (
 	"fmt"
 
-	"github.com/hiddify/hiddify-core/v2/db"
+	"github.com/Darkmen203/rostovvpn-core/v2/db"
 	"github.com/sagernet/sing-box/log"
 
-	"github.com/hiddify/hiddify-core/v2/service_manager"
+	"github.com/Darkmen203/rostovvpn-core/v2/service_manager"
 )
 
 var (

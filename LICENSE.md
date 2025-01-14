@@ -9,7 +9,7 @@ Additional Permissions and Restrictions Under GNU GPL Version 3 Section 7
 
 - Any forks should be published open-source under the same license.
 
-- Prior consent is required to publish a fork or utilize any part of this repository (github.com/hiddify/hiddify-next and github.com/hiddify/hiddify-next-core) in an application intended for publication on the App Store or for iOS/macOS platforms. (We reserve the right to modify this requirement in the future after completing development for iOS and macOS).
+- Prior consent is required to publish a fork or utilize any part of this repository (github.com/Darkmen203/rostovvpn and github.com/Darkmen203/rostovvpn-core) in an application intended for publication on the App Store or for iOS/macOS platforms. (We reserve the right to modify this requirement in the future after completing development for iOS and macOS).
 - You need prior consent to publish a fork or use any part of this code in an application published in AppStore or publish for iOS or macOS. (We reserve the right to modify this requirement in the future after completing development for iOS and macOS).
 - You are free to:
   - Share — copy and redistribute the material in any medium or format with 

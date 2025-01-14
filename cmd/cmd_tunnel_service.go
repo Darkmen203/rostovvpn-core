@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hiddify/hiddify-core/config"
-	v2 "github.com/hiddify/hiddify-core/v2"
+	"github.com/Darkmen203/rostovvpn-core/config"
+	v2 "github.com/Darkmen203/rostovvpn-core/v2"
 
 	"github.com/spf13/cobra"
 )

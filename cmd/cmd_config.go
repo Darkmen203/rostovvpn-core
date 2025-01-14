@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/hiddify/hiddify-core/config"
-	pb "github.com/hiddify/hiddify-core/hiddifyrpc"
-	v2 "github.com/hiddify/hiddify-core/v2"
+	"github.com/Darkmen203/rostovvpn-core/config"
+	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
+	v2 "github.com/Darkmen203/rostovvpn-core/v2"
 	"github.com/sagernet/sing-box/experimental/libbox"
 	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing-box/option"

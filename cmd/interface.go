@@ -17,7 +17,7 @@ var (
 )
 
 var mainCommand = &cobra.Command{
-	Use:              "HiddifyCli",
+	Use:              "RostovVPNCli",
 	PersistentPreRun: preRun,
 }
 

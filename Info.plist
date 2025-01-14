@@ -41,7 +41,7 @@
 	<key>XCFrameworkFormatVersion</key>
 	<string>1.0</string>
 	<key>CFBundleIdentifier</key>
-	<string>ios.libcore.hiddify</string>
+	<string>ios.libcore.rostovvpn</string>
 	<key>CFBundleShortVersionString</key><string>3.1.8</string>
 	<key>CFBundleVersion</key><string>3.1.8</string>
 	<key>MinimumOSVersion</key>

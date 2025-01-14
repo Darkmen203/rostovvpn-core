@@ -8,7 +8,7 @@ import (
 	runtimeDebug "runtime/debug"
 	"time"
 
-	"github.com/hiddify/hiddify-core/v2/service_manager"
+	"github.com/Darkmen203/rostovvpn-core/v2/service_manager"
 
 	B "github.com/sagernet/sing-box"
 	"github.com/sagernet/sing-box/common/urltest"

@@ -11,10 +11,10 @@ import (
 	"os"
 	"unsafe"
 
-	"github.com/hiddify/hiddify-core/bridge"
-	"github.com/hiddify/hiddify-core/config"
-	pb "github.com/hiddify/hiddify-core/hiddifyrpc"
-	v2 "github.com/hiddify/hiddify-core/v2"
+	"github.com/Darkmen203/rostovvpn-core/bridge"
+	"github.com/Darkmen203/rostovvpn-core/config"
+	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
+	v2 "github.com/Darkmen203/rostovvpn-core/v2"
 
 	"github.com/sagernet/sing-box/log"
 )

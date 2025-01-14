@@ -10,9 +10,9 @@ import (
 	"sync"
 	"syscall"
 
-	v2 "github.com/hiddify/hiddify-core/v2"
+	v2 "github.com/Darkmen203/rostovvpn-core/v2"
 
-	"github.com/hiddify/hiddify-core/utils"
+	"github.com/Darkmen203/rostovvpn-core/utils"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"google.golang.org/grpc"
 )

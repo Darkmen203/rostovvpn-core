@@ -3,7 +3,7 @@ package cmd
 import (
 	"os"
 
-	"github.com/hiddify/hiddify-core/utils"
+	"github.com/Darkmen203/rostovvpn-core/utils"
 	"github.com/spf13/cobra"
 )
 

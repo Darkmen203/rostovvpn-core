@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	pb "github.com/hiddify/hiddify-core/hiddifyrpc"
+	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
 	"github.com/sagernet/sing/common/observable"
 	"google.golang.org/grpc"
 )

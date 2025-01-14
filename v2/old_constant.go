@@ -1,6 +1,6 @@
 package v2
 
-import pb "github.com/hiddify/hiddify-core/hiddifyrpc"
+import pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
 
 const (
 	Stopped  = "Stopped"

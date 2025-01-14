@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"time"
 
-	pb "github.com/hiddify/hiddify-core/hiddifyrpc"
+	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
 	"github.com/sagernet/sing-box/option"
 	dns "github.com/sagernet/sing-dns"
 	grpc "google.golang.org/grpc"
@@ -176,11 +176,11 @@ func getTunnelServicePath() string {
 	binFolder := filepath.Dir(exePath)
 	switch runtime.GOOS {
 	case "windows":
-		fullPath = "HiddifyCli.exe"
+		fullPath = "RostovVPNCli.exe"
 	case "darwin":
 		fallthrough
 	default:
-		fullPath = "HiddifyCli"
+		fullPath = "RostovVPNCli"
 	}
 
 	abspath, _ := filepath.Abs(filepath.Join(binFolder, fullPath))

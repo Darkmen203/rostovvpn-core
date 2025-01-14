@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/hiddify/hiddify-core/bridge"
-	pb "github.com/hiddify/hiddify-core/hiddifyrpc"
+	"github.com/Darkmen203/rostovvpn-core/bridge"
+	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
 	"google.golang.org/grpc"
 )
 

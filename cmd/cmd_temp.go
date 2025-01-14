@@ -9,8 +9,8 @@ package cmd
 // 	"net/netip"
 // 	"time"
 
-// 	"github.com/hiddify/hiddify-core/common"
-// 	// "github.com/hiddify/hiddify-core/extension_repository/cleanip_scanner"
+// 	"github.com/Darkmen203/rostovvpn-core/common"
+// 	// "github.com/Darkmen203/rostovvpn-core/extension_repository/cleanip_scanner"
 // 	"github.com/spf13/cobra"
 // 	"golang.org/x/net/proxy"
 // )

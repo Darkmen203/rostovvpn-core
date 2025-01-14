@@ -3,10 +3,10 @@ package extension
 import (
 	"encoding/json"
 
-	"github.com/hiddify/hiddify-core/config"
-	"github.com/hiddify/hiddify-core/extension/ui"
-	pb "github.com/hiddify/hiddify-core/hiddifyrpc"
-	"github.com/hiddify/hiddify-core/v2/db"
+	"github.com/Darkmen203/rostovvpn-core/config"
+	"github.com/Darkmen203/rostovvpn-core/extension/ui"
+	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
+	"github.com/Darkmen203/rostovvpn-core/v2/db"
 	"github.com/jellydator/validation"
 	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing-box/option"

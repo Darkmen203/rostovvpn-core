@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/hiddify/hiddify-core/bridge"
-	"github.com/hiddify/hiddify-core/config"
-	pb "github.com/hiddify/hiddify-core/hiddifyrpc"
+	"github.com/Darkmen203/rostovvpn-core/bridge"
+	"github.com/Darkmen203/rostovvpn-core/config"
+	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
 	"github.com/sagernet/sing-box/experimental/libbox"
 	"github.com/sagernet/sing-box/log"
 )

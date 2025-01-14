@@ -8,8 +8,8 @@ import (
 	"log"
 	"net"
 
-	"github.com/hiddify/hiddify-core/extension"
-	pb "github.com/hiddify/hiddify-core/hiddifyrpc"
+	"github.com/Darkmen203/rostovvpn-core/extension"
+	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
 
 	"google.golang.org/grpc"
 )

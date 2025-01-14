@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hiddify/hiddify-core/config"
+	"github.com/Darkmen203/rostovvpn-core/config"
 	T "github.com/sagernet/sing-box/option"
 	"github.com/spf13/cobra"
 )

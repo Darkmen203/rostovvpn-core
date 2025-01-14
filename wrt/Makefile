@@ -1,11 +1,11 @@
 include $(TOPDIR)/rules.mk
 
-PKG_NAME:=hiddify-core
+PKG_NAME:=rostovvpn-core
 PKG_VERSION:=3.1.8
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=https://codeload.github.com/hiddify/hiddify-core/tar.gz/v$(PKG_VERSION)?
+PKG_SOURCE_URL:=https://codeload.github.com/Darkmen203/rostovvpn-core/tar.gz/v$(PKG_VERSION)?
 PKG_HASH:=02c8db701ed3b6fc7e5ccc91d444edb6fa3ca8faa143cd2a2678f4f154eafd8d
 
 PKG_LICENSE:=https://github.com/hiddify/hiddify-next/edit/main/LICENSE.md
@@ -16,7 +16,7 @@ PKG_BUILD_DEPENDS:=golang/host
 PKG_BUILD_PARALLEL:=1
 PKG_BUILD_FLAGS:=no-mips16
 
-GO_PKG:=github.com/hiddify/hiddify-core
+GO_PKG:=github.com/Darkmen203/rostovvpn-core
 GO_PKG_BUILD_PKG:=$(GO_PKG)/cli
 
 GO_PKG_LDFLAGS_X:=$(GO_PKG)/constant.Version=$(PKG_VERSION)
@@ -24,7 +24,7 @@ GO_PKG_LDFLAGS_X:=$(GO_PKG)/constant.Version=$(PKG_VERSION)
 include $(INCLUDE_DIR)/package.mk
 include ../../lang/golang/golang-package.mk
 
-define Package/hiddify-core
+define Package/rostovvpn-core
   TITLE:=Hiddify universal proxy platform
   SECTION:=net
   CATEGORY:=Network
@@ -33,19 +33,19 @@ define Package/hiddify-core
   USERID:=hiddify=15566:hiddify=15566
 endef
 
-define Package/hiddify-core/description
+define Package/rostovvpn-core/description
   Hiddify is a universal proxy platform which supports hysteria, SOCKS, Shadowsocks,
   ShadowTLS, Tor, trojan, VLess, VMess, WireGuard and so on.
 endef
 
 GO_PKG_TAGS:=with_gvisor,with_quic,with_wireguard,with_ech,with_utls,with_clash_api,with_grpc,with_low_memory,with_conntrack
 
-define Package/hiddify-core/conffiles
+define Package/rostovvpn-core/conffiles
 /etc/config/hiddify
 /etc/hiddify/
 endef
 
-define Package/hiddify-core/install
+define Package/rostovvpn-core/install
 
 	$(INSTALL_DIR) $(1)/usr/bin/
 	$(INSTALL_BIN) $(GO_PKG_BUILD_BIN_DIR)/cli $(1)/usr/bin/hiddify-cli
@@ -62,4 +62,4 @@ define Package/hiddify-core/install
 	$(CP) ./files/webui $(1)/usr/bin/
 endef
 
-$(eval $(call BuildPackage,hiddify-core))
+$(eval $(call BuildPackage,rostovvpn-core))

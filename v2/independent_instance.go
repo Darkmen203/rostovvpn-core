@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hiddify/hiddify-core/config"
+	"github.com/Darkmen203/rostovvpn-core/config"
 	"golang.org/x/net/proxy"
 
 	"github.com/sagernet/sing-box/experimental/libbox"
