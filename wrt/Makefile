@@ -1,12 +1,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=rostovvpn-core
-PKG_VERSION:=3.1.8
+PKG_VERSION:=3.1.9
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/Darkmen203/rostovvpn-core/tar.gz/v$(PKG_VERSION)?
-PKG_HASH:=02c8db701ed3b6fc7e5ccc91d444edb6fa3ca8faa143cd2a2678f4f154eafd8d
+PKG_HASH:=27c3ec1ab07e36a61582293f6556b237a54741e9802e8d2c3d840de30fd07b90
 
 PKG_LICENSE:=https://github.com/hiddify/hiddify-next/edit/main/LICENSE.md
 PKG_LICENSE_FILES:=LICENSE
