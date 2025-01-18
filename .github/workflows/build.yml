@@ -12,7 +12,7 @@ on:
         type: string
         default: "dev"
 env:
-    REGISTRY_IMAGE: ghcr.io/Darkmen203/rostovvpn-core
+    REGISTRY_IMAGE: ghcr.io/darkmen203/rostovvpn-core
 
 
 jobs:
