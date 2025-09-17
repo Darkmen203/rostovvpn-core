@@ -38,7 +38,7 @@ define Package/rostovvpn-core/description
   ShadowTLS, Tor, trojan, VLess, VMess, WireGuard and so on.
 endef
 
-GO_PKG_TAGS:=with_gvisor,with_quic,with_wireguard,with_ech,with_utls,with_clash_api,with_grpc,with_low_memory,with_conntrack
+GO_PKG_TAGS:=with_gvisor,with_quic,with_wireguard,with_utls,with_clash_api,with_grpc,with_low_memory,with_conntrack
 
 define Package/rostovvpn-core/conffiles
 /etc/config/rostovvpn
@@ -63,3 +63,4 @@ define Package/rostovvpn-core/install
 endef
 
 $(eval $(call BuildPackage,rostovvpn-core))
+

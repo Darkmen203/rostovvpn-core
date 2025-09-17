@@ -47,7 +47,7 @@ const libName = "libcore"
 func init() {
 	sharedFlags = append(sharedFlags, "-trimpath")
 	sharedFlags = append(sharedFlags, "-ldflags", "-s -w")
-	sharedTags = append(sharedTags, "with_gvisor", "with_quic", "with_wireguard", "with_ech", "with_utls", "with_clash_api", "with_grpc")
+	sharedTags = append(sharedTags, "with_gvisor", "with_quic", "with_wireguard", "with_utls", "with_clash_api", "with_grpc")
 	iosTags = append(iosTags, "with_dhcp", "with_low_memory", "with_conntrack")
 }
 
@@ -215,3 +215,4 @@ func buildIOS() {
 
 	rw.CopyFile("Info.plist", filepath.Join(output, "Info.plist"))
 }
+
