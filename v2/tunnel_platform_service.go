@@ -11,16 +11,16 @@ import (
 
 var logger service.Logger
 
-type hiddifyNext struct{}
+type rostovvpnNext struct{}
 
 var port int = 18020
 
-func (m *hiddifyNext) Start(s service.Service) error {
+func (m *rostovvpnNext) Start(s service.Service) error {
 	_, err := StartTunnelGrpcServer(fmt.Sprintf("127.0.0.1:%d", port))
 	return err
 }
 
-func (m *hiddifyNext) Stop(s service.Service) error {
+func (m *rostovvpnNext) Stop(s service.Service) error {
 	_, err := Stop()
 	if err != nil {
 		return nil
@@ -43,18 +43,18 @@ func getCurrentExecutableDirectory() string {
 }
 
 func StartTunnelService(goArg string) (int, string) {
-	svcConfig := &service.Config{
-		Name:        "HiddifyTunnelService",
-		DisplayName: "Hiddify Tunnel Service",
-		Arguments:   []string{"tunnel", "run"},
-		Description: "This is a bridge for tunnel",
+    svcConfig := &service.Config{
+        Name:        "RostovVPNTunnelService",
+        DisplayName: "RostovVPN Tunnel Service",
+        Arguments:   []string{"tunnel", "run"},
+        Description: "This is a bridge for tunnel",
 		Option: map[string]interface{}{
 			"RunAtLoad":        true,
 			"WorkingDirectory": getCurrentExecutableDirectory(),
 		},
 	}
 
-	prg := &hiddifyNext{}
+    prg := &rostovvpnNext{}
 	s, err := service.New(prg, svcConfig)
 	if err != nil {
 		// log.Printf("Error: %v", err)

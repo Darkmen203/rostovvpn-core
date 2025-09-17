@@ -21,11 +21,11 @@ docker-compose up
 
 ## Extension
 
-An extension is something that can be added to hiddify application by a third party. It will add capability to modify configs, do some extra action, show and receive data from users.
+An extension is something that can be added to the RostovVPN application by a third party. It will add capability to modify configs, do some extra action, show and receive data from users.
 
-This extension will be shown in all Hiddify Platforms such as Android/macOS/Linux/Windows/iOS
+This extension will be shown in all RostovVPN Platforms such as Android/macOS/Linux/Windows/iOS
 
-[Create an extension](https://github.com/hiddify/hiddify-app-example-extension)
+[Create an extension](https://github.com/Darkmen203/rostovvpn-app-example-extension)
 
 Features and Road map:
 

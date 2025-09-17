@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/Darkmen203/rostovvpn-core/config"
-	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
+	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 )
 
 func (s *CoreService) GenerateWarpConfig(ctx context.Context, in *pb.GenerateWarpConfigRequest) (*pb.WarpGenerationResponse, error) {

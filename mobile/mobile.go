@@ -6,11 +6,12 @@ import (
 	"path/filepath"
 
 	"github.com/Darkmen203/rostovvpn-core/config"
-
 	"github.com/Darkmen203/rostovvpn-core/v2"
 
 	_ "github.com/sagernet/gomobile"
+	"github.com/sagernet/sing-box/experimental/libbox"
 	"github.com/sagernet/sing-box/option"
+	singjson "github.com/sagernet/sing/common/json"
 )
 
 func Setup(baseDir string, workingDir string, tempDir string, debug bool) error {
@@ -26,37 +27,37 @@ func Parse(path string, tempPath string, debug bool) error {
 	return os.WriteFile(path, config, 0o644)
 }
 
-func BuildConfig(path string, HiddifyOptionsJson string) (string, error) {
+func BuildConfig(path string, RostovVPNOptionsJson string) (string, error) {
 	os.Chdir(filepath.Dir(path))
 	fileContent, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
 	}
-	var options option.Options
-	err = options.UnmarshalJSON(fileContent)
+	ctx := libbox.BaseContext(nil)
+	options, err := singjson.UnmarshalExtendedContext[option.Options](ctx, fileContent)
 	if err != nil {
 		return "", err
 	}
-	HiddifyOptions := &config.HiddifyOptions{}
-	err = json.Unmarshal([]byte(HiddifyOptionsJson), HiddifyOptions)
+	RostovVPNOptions := &config.RostovVPNOptions{}
+	err = json.Unmarshal([]byte(RostovVPNOptionsJson), RostovVPNOptions)
 	if err != nil {
 		return "", nil
 	}
-	if HiddifyOptions.Warp.WireguardConfigStr != "" {
-		err := json.Unmarshal([]byte(HiddifyOptions.Warp.WireguardConfigStr), &HiddifyOptions.Warp.WireguardConfig)
+	if RostovVPNOptions.Warp.WireguardConfigStr != "" {
+		err := json.Unmarshal([]byte(RostovVPNOptions.Warp.WireguardConfigStr), &RostovVPNOptions.Warp.WireguardConfig)
 		if err != nil {
 			return "", err
 		}
 	}
 
-	if HiddifyOptions.Warp2.WireguardConfigStr != "" {
-		err := json.Unmarshal([]byte(HiddifyOptions.Warp2.WireguardConfigStr), &HiddifyOptions.Warp2.WireguardConfig)
+	if RostovVPNOptions.Warp2.WireguardConfigStr != "" {
+		err := json.Unmarshal([]byte(RostovVPNOptions.Warp2.WireguardConfigStr), &RostovVPNOptions.Warp2.WireguardConfig)
 		if err != nil {
 			return "", err
 		}
 	}
 
-	return config.BuildConfigJson(*HiddifyOptions, options)
+	return config.BuildConfigJson(*RostovVPNOptions, options)
 }
 
 func GenerateWarpConfig(licenseKey string, accountId string, accessToken string) (string, error) {

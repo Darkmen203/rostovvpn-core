@@ -13,10 +13,11 @@ import (
 
 	"github.com/Darkmen203/rostovvpn-core/bridge"
 	"github.com/Darkmen203/rostovvpn-core/config"
-	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
+	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 	v2 "github.com/Darkmen203/rostovvpn-core/v2"
 
 	"github.com/sagernet/sing-box/log"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 //export setupOnce
@@ -46,10 +47,14 @@ func parse(path *C.char, tempPath *C.char, debug bool) (CErr *C.char) {
 }
 
 //export changeRostovvpnOptions
-func changeRostovvpnOptions(HiddifyOptionsJson *C.char) (CErr *C.char) {
-	_, err := v2.ChangeHiddifySettings(&pb.ChangeHiddifySettingsRequest{
-		HiddifySettingsJson: C.GoString(HiddifyOptionsJson),
-	})
+func changeRostovvpnOptions(RostovVPNOptionsJson *C.char) (CErr *C.char) {
+	req := &pb.ChangeRostovVPNSettingsRequest{}
+	field := req.ProtoReflect().Descriptor().Fields().ByName("rostovvpn_settings_json")
+	if field == nil {
+		return emptyOrErrorC(fmt.Errorf("rostovvpn_settings_json field not found"))
+	}
+	req.ProtoReflect().Set(field, protoreflect.ValueOfString(C.GoString(RostovVPNOptionsJson)))
+	_, err := v2.ChangeRostovVPNSettings(req)
 	return emptyOrErrorC(err)
 }
 

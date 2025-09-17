@@ -5,7 +5,7 @@ import (
 
 	"github.com/Darkmen203/rostovvpn-core/config"
 	"github.com/Darkmen203/rostovvpn-core/extension/ui"
-	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
+	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 	"github.com/Darkmen203/rostovvpn-core/v2/db"
 	"github.com/jellydator/validation"
 	"github.com/sagernet/sing-box/log"
@@ -18,7 +18,7 @@ type Extension interface {
 	Close() error
 	UpdateUI(form ui.Form) error
 
-	BeforeAppConnect(hiddifySettings *config.HiddifyOptions, singconfig *option.Options) error
+	BeforeAppConnect(rostovVPNSettings *config.RostovVPNOptions, singconfig *option.Options) error
 
 	StoreData()
 
@@ -37,7 +37,7 @@ type Base[T any] struct {
 // func (b *Base) mustEmbdedBaseExtension() {
 // }
 
-func (b *Base[T]) BeforeAppConnect(hiddifySettings *config.HiddifyOptions, singconfig *option.Options) error {
+func (b *Base[T]) BeforeAppConnect(rostovVPNSettings *config.RostovVPNOptions, singconfig *option.Options) error {
 	return nil
 }
 

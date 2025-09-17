@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Darkmen203/rostovvpn-core/bridge"
-	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
+	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 	"google.golang.org/grpc"
 )
 

@@ -10,14 +10,14 @@ import (
 
 	"github.com/Darkmen203/rostovvpn-core/bridge"
 	"github.com/Darkmen203/rostovvpn-core/config"
-	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
+	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 	"github.com/sagernet/sing-box/experimental/libbox"
 	"github.com/sagernet/sing-box/log"
 )
 
 var (
 	Box              *libbox.BoxService
-	HiddifyOptions   *config.HiddifyOptions
+	RostovVPNOptions *config.RostovVPNOptions
 	activeConfigPath string
 	coreLogFactory   log.Factory
 	useFlutterBridge bool = true
@@ -100,7 +100,7 @@ func StartService(in *pb.StartRequest) (*pb.CoreInfoResponse, error) {
 	}
 	if !in.EnableRawConfig {
 		Log(pb.LogLevel_DEBUG, pb.LogType_CORE, "Building config")
-		parsedContent_tmp, err := config.BuildConfig(*HiddifyOptions, parsedContent)
+		parsedContent_tmp, err := config.BuildConfig(*RostovVPNOptions, parsedContent)
 		if err != nil {
 			Log(pb.LogLevel_FATAL, pb.LogType_CORE, err.Error())
 			resp := SetCoreStatus(pb.CoreState_STOPPED, pb.MessageType_ERROR_BUILDING_CONFIG, err.Error())
@@ -176,7 +176,7 @@ func Parse(in *pb.ParseRequest) (*pb.ParseResponse, error) {
 
 	}
 
-	config, err := config.ParseConfigContent(content, true, HiddifyOptions, false)
+	config, err := config.ParseConfigContent(content, true, RostovVPNOptions, false)
 	if err != nil {
 		return &pb.ParseResponse{
 			ResponseCode: pb.ResponseCode_FAILED,
@@ -199,24 +199,24 @@ func Parse(in *pb.ParseRequest) (*pb.ParseResponse, error) {
 	}, err
 }
 
-func (s *CoreService) ChangeHiddifySettings(ctx context.Context, in *pb.ChangeHiddifySettingsRequest) (*pb.CoreInfoResponse, error) {
-	return ChangeHiddifySettings(in)
+func (s *CoreService) ChangeRostovVPNSettings(ctx context.Context, in *pb.ChangeRostovVPNSettingsRequest) (*pb.CoreInfoResponse, error) {
+	return ChangeRostovVPNSettings(in)
 }
 
-func ChangeHiddifySettings(in *pb.ChangeHiddifySettingsRequest) (*pb.CoreInfoResponse, error) {
-	HiddifyOptions = config.DefaultHiddifyOptions()
-	err := json.Unmarshal([]byte(in.HiddifySettingsJson), HiddifyOptions)
+func ChangeRostovVPNSettings(in *pb.ChangeRostovVPNSettingsRequest) (*pb.CoreInfoResponse, error) {
+	RostovVPNOptions = config.DefaultRostovVPNOptions()
+	err := json.Unmarshal([]byte(in.GetrostovVPNSettingsJson()), RostovVPNOptions)
 	if err != nil {
 		return nil, err
 	}
-	if HiddifyOptions.Warp.WireguardConfigStr != "" {
-		err := json.Unmarshal([]byte(HiddifyOptions.Warp.WireguardConfigStr), &HiddifyOptions.Warp.WireguardConfig)
+	if RostovVPNOptions.Warp.WireguardConfigStr != "" {
+		err := json.Unmarshal([]byte(RostovVPNOptions.Warp.WireguardConfigStr), &RostovVPNOptions.Warp.WireguardConfig)
 		if err != nil {
 			return nil, err
 		}
 	}
-	if HiddifyOptions.Warp2.WireguardConfigStr != "" {
-		err := json.Unmarshal([]byte(HiddifyOptions.Warp2.WireguardConfigStr), &HiddifyOptions.Warp2.WireguardConfig)
+	if RostovVPNOptions.Warp2.WireguardConfigStr != "" {
+		err := json.Unmarshal([]byte(RostovVPNOptions.Warp2.WireguardConfigStr), &RostovVPNOptions.Warp2.WireguardConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -233,10 +233,10 @@ func GenerateConfig(in *pb.GenerateConfigRequest) (*pb.GenerateConfigResponse, e
 		Log(pb.LogLevel_FATAL, pb.LogType_CONFIG, err.Error())
 		StopAndAlert(pb.MessageType_UNEXPECTED_ERROR, err.Error())
 	})
-	if HiddifyOptions == nil {
-		HiddifyOptions = config.DefaultHiddifyOptions()
+	if RostovVPNOptions == nil {
+		RostovVPNOptions = config.DefaultRostovVPNOptions()
 	}
-	config, err := generateConfigFromFile(in.Path, *HiddifyOptions)
+	config, err := generateConfigFromFile(in.Path, *RostovVPNOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +245,7 @@ func GenerateConfig(in *pb.GenerateConfigRequest) (*pb.GenerateConfigResponse, e
 	}, nil
 }
 
-func generateConfigFromFile(path string, configOpt config.HiddifyOptions) (string, error) {
+func generateConfigFromFile(path string, configOpt config.RostovVPNOptions) (string, error) {
 	os.Chdir(filepath.Dir(path))
 	content, err := os.ReadFile(path)
 	if err != nil {

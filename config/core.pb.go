@@ -294,16 +294,16 @@ func file_core_proto_rawDescGZIP() []byte {
 
 var file_core_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_core_proto_goTypes = []interface{}{
-	(*ParseConfigRequest)(nil),     // 0: HiddifyOptions.ParseConfigRequest
-	(*ParseConfigResponse)(nil),    // 1: HiddifyOptions.ParseConfigResponse
-	(*GenerateConfigRequest)(nil),  // 2: HiddifyOptions.GenerateConfigRequest
-	(*GenerateConfigResponse)(nil), // 3: HiddifyOptions.GenerateConfigResponse
+	(*ParseConfigRequest)(nil),     // 0: RostovVPNOptions.ParseConfigRequest
+	(*ParseConfigResponse)(nil),    // 1: RostovVPNOptions.ParseConfigResponse
+	(*GenerateConfigRequest)(nil),  // 2: RostovVPNOptions.GenerateConfigRequest
+	(*GenerateConfigResponse)(nil), // 3: RostovVPNOptions.GenerateConfigResponse
 }
 var file_core_proto_depIdxs = []int32{
-	0, // 0: HiddifyOptions.CoreService.ParseConfig:input_type -> HiddifyOptions.ParseConfigRequest
-	2, // 1: HiddifyOptions.CoreService.GenerateFullConfig:input_type -> HiddifyOptions.GenerateConfigRequest
-	1, // 2: HiddifyOptions.CoreService.ParseConfig:output_type -> HiddifyOptions.ParseConfigResponse
-	3, // 3: HiddifyOptions.CoreService.GenerateFullConfig:output_type -> HiddifyOptions.GenerateConfigResponse
+	0, // 0: RostovVPNOptions.CoreService.ParseConfig:input_type -> RostovVPNOptions.ParseConfigRequest
+	2, // 1: RostovVPNOptions.CoreService.GenerateFullConfig:input_type -> RostovVPNOptions.GenerateConfigRequest
+	1, // 2: RostovVPNOptions.CoreService.ParseConfig:output_type -> RostovVPNOptions.ParseConfigResponse
+	3, // 3: RostovVPNOptions.CoreService.GenerateFullConfig:output_type -> RostovVPNOptions.GenerateConfigResponse
 	2, // [2:4] is the sub-list for method output_type
 	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name

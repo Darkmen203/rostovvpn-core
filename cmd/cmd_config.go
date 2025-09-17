@@ -7,19 +7,20 @@ import (
 	"path/filepath"
 
 	"github.com/Darkmen203/rostovvpn-core/config"
-	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
+	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 	v2 "github.com/Darkmen203/rostovvpn-core/v2"
 	"github.com/sagernet/sing-box/experimental/libbox"
 	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing-box/option"
+	singjson "github.com/sagernet/sing/common/json"
 
 	"github.com/spf13/cobra"
 )
 
 var (
-	hiddifySettingPath     string
+	rostovVPNSettingPath     string
 	configPath             string
-	defaultConfigs         config.HiddifyOptions = *config.DefaultHiddifyOptions()
+	defaultConfigs         config.RostovVPNOptions = *config.DefaultRostovVPNOptions()
 	commandBuildOutputPath string
 )
 
@@ -27,7 +28,7 @@ var commandBuild = &cobra.Command{
 	Use:   "build",
 	Short: "Build configuration",
 	Run: func(cmd *cobra.Command, args []string) {
-		err := build(configPath, hiddifySettingPath)
+		err := build(configPath, rostovVPNSettingPath)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -80,14 +81,14 @@ func build(path string, optionsPath string) error {
 		return err
 	}
 
-	HiddifyOptions := &defaultConfigs // config.DefaultHiddifyOptions()
+	RostovVPNOptions := &defaultConfigs // config.DefaultRostovVPNOptions()
 	if optionsPath != "" {
-		HiddifyOptions, err = readHiddifyOptionsAt(optionsPath)
+		RostovVPNOptions, err = readRostovVPNOptionsAt(optionsPath)
 		if err != nil {
 			return err
 		}
 	}
-	config, err := config.BuildConfigJson(*HiddifyOptions, *options)
+	config, err := config.BuildConfigJson(*RostovVPNOptions, *options)
 	if err != nil {
 		return err
 	}
@@ -119,29 +120,24 @@ func readConfigAt(path string) (*option.Options, error) {
 	if err != nil {
 		return nil, err
 	}
-	var options option.Options
-	err = options.UnmarshalJSON(content)
-	if err != nil {
-		return nil, err
-	}
-	return &options, nil
+	return readConfigBytes(content)
 }
 
 func readConfigBytes(content []byte) (*option.Options, error) {
-	var options option.Options
-	err := options.UnmarshalJSON(content)
+	ctx := libbox.BaseContext(nil)
+	options, err := singjson.UnmarshalExtendedContext[option.Options](ctx, content)
 	if err != nil {
 		return nil, err
 	}
 	return &options, nil
 }
 
-func readHiddifyOptionsAt(path string) (*config.HiddifyOptions, error) {
+func readRostovVPNOptionsAt(path string) (*config.RostovVPNOptions, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	var options config.HiddifyOptions
+	var options config.RostovVPNOptions
 	err = json.Unmarshal(content, &options)
 	if err != nil {
 		return nil, err
@@ -165,7 +161,7 @@ func readHiddifyOptionsAt(path string) (*config.HiddifyOptions, error) {
 func addHConfigFlags(commandRun *cobra.Command) {
 	commandRun.Flags().StringVarP(&configPath, "config", "c", "", "proxy config path or url")
 	commandRun.MarkFlagRequired("config")
-	commandRun.Flags().StringVarP(&hiddifySettingPath, "hiddify", "d", "", "Hiddify Setting JSON Path")
+	commandRun.Flags().StringVarP(&rostovVPNSettingPath, "rostovvpn", "d", "", "RostovVPN Setting JSON Path")
 	commandRun.Flags().BoolVar(&defaultConfigs.EnableFullConfig, "full-config", false, "allows including tags other than output")
 	commandRun.Flags().StringVar(&defaultConfigs.LogLevel, "log", "warn", "log level")
 	commandRun.Flags().BoolVar(&defaultConfigs.InboundOptions.EnableTun, "tun", false, "Enable Tun")

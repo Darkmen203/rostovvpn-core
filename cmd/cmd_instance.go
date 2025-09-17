@@ -15,16 +15,16 @@ var commandInstance = &cobra.Command{
 	Short: "instance",
 	Args:  cobra.OnlyValidArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		hiddifySetting := defaultConfigs
-		if hiddifySettingPath != "" {
-			hiddifySetting2, err := v2.ReadHiddifyOptionsAt(hiddifySettingPath)
+		rostovVPNSetting := defaultConfigs
+		if rostovVPNSettingPath != "" {
+			rostovVPNSetting2, err := v2.ReadRostovVPNOptionsAt(rostovVPNSettingPath)
 			if err != nil {
 				log.Fatal(err)
 			}
-			hiddifySetting = *hiddifySetting2
+			rostovVPNSetting = *rostovVPNSetting2
 		}
 
-		instance, err := v2.RunInstanceString(&hiddifySetting, configPath)
+		instance, err := v2.RunInstanceString(&rostovVPNSetting, configPath)
 		if err != nil {
 			log.Fatal(err)
 		}

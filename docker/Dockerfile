@@ -1,7 +1,7 @@
 FROM alpine:latest
 ENV CONFIG='https://raw.githubusercontent.com/ircfspace/warpsub/main/export/warp#WARP%20(IRCF)'
 ENV VERSION=v3.2.0
-WORKDIR /hiddify
+WORKDIR /rostovvpn
 RUN apk add  curl tar gzip libc6-compat # iptables ip6tables
 
 RUN echo "architecture: $(apk --print-arch)" && \    
@@ -18,8 +18,8 @@ RUN echo "architecture: $(apk --print-arch)" && \
         echo "Downloading https://github.com/Darkmen203/rostovvpn-core/releases/download/${VERSION}/rostovvpn-cli-linux-$ARCH.tar.gz" && \
         curl -L -o rostovvpn-cli.tar.gz https://github.com/Darkmen203/rostovvpn-core/releases/download/${VERSION}/rostovvpn-cli-linux-$ARCH.tar.gz && \
         tar -xzf rostovvpn-cli.tar.gz && rm rostovvpn-cli.tar.gz
-COPY hiddify.sh .
-RUN chmod +x hiddify.sh
+COPY rostovvpn.sh .
+RUN chmod +x rostovvpn.sh && mkdir -p /opt && cp rostovvpn.sh /opt/rostovvpn.sh && chmod +x /opt/rostovvpn.sh
 
 EXPOSE 12334
 EXPOSE 12335
@@ -27,4 +27,4 @@ EXPOSE 16756
 EXPOSE 16450
 
 
-ENTRYPOINT [ "/hiddify/hiddify.sh" ]
+ENTRYPOINT [ "/rostovvpn/rostovvpn.sh" ]

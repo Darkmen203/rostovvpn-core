@@ -36,14 +36,14 @@ func StartCommand(command int32, port int64) error {
 			},
 		)
 		return oldGroupClient.Connect()
-	case libbox.CommandGroupInfoOnly:
+	case libbox.CommandGroupExpand:
 		oldGroupInfoOnlyClient = libbox.NewCommandClient(
 			&OldCommandClientHandler{
 				port:   port,
 				logger: coreLogFactory.NewLogger("[GroupInfoOnly Command Client]"),
 			},
 			&libbox.CommandClientOptions{
-				Command:        libbox.CommandGroupInfoOnly,
+				Command:        libbox.CommandGroupExpand,
 				StatusInterval: 300000000, //300ms debounce
 			},
 		)
@@ -62,7 +62,7 @@ func StopCommand(command int32) error {
 		err := oldGroupClient.Disconnect()
 		oldGroupClient = nil
 		return err
-	case libbox.CommandGroupInfoOnly:
+	case libbox.CommandGroupExpand:
 		err := oldGroupInfoOnlyClient.Disconnect()
 		oldGroupInfoOnlyClient = nil
 		return err

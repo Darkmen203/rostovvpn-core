@@ -1,185 +1,130 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
+	"strings"
 
 	C "github.com/sagernet/sing-box/constant"
-	"github.com/sagernet/sing-box/option"
+	option "github.com/sagernet/sing-box/option"
 )
 
-type outboundMap map[string]interface{}
-
-func patchOutboundMux(base option.Outbound, configOpt HiddifyOptions, obj outboundMap) outboundMap {
-	if configOpt.Mux.Enable {
-		multiplex := option.OutboundMultiplexOptions{
-			Enabled:    true,
-			Padding:    configOpt.Mux.Padding,
-			MaxStreams: configOpt.Mux.MaxStreams,
-			Protocol:   configOpt.Mux.Protocol,
-		}
-		obj["multiplex"] = multiplex
-		// } else {
-		// 	delete(obj, "multiplex")
+func patchOutboundMux(obj outboundMap, configOpt RostovVPNOptions) outboundMap {
+	if !configOpt.Mux.Enable {
+		return obj
+	}
+	switch obj.string("type") {
+	case C.TypeSelector, C.TypeURLTest, C.TypeDirect, C.TypeBlock, C.TypeDNS:
+		return obj
+	}
+	obj["multiplex"] = map[string]any{
+		"enabled":     true,
+		"padding":     configOpt.Mux.Padding,
+		"max_streams": configOpt.Mux.MaxStreams,
+		"protocol":    configOpt.Mux.Protocol,
 	}
 	return obj
 }
 
-func patchOutboundTLSTricks(base option.Outbound, configOpt HiddifyOptions, obj outboundMap) outboundMap {
-	if base.Type == C.TypeSelector || base.Type == C.TypeURLTest || base.Type == C.TypeBlock || base.Type == C.TypeDNS {
+func patchOutboundFragment(obj outboundMap, configOpt RostovVPNOptions) outboundMap {
+	if !configOpt.TLSTricks.EnableFragment {
 		return obj
 	}
-	if isOutboundReality(base) {
-		return obj
-	}
-
-	var tls *option.OutboundTLSOptions
-	var transport *option.V2RayTransportOptions
-	if base.VLESSOptions.OutboundTLSOptionsContainer.TLS != nil {
-		tls = base.VLESSOptions.OutboundTLSOptionsContainer.TLS
-		transport = base.VLESSOptions.Transport
-	} else if base.TrojanOptions.OutboundTLSOptionsContainer.TLS != nil {
-		tls = base.TrojanOptions.OutboundTLSOptionsContainer.TLS
-		transport = base.TrojanOptions.Transport
-	} else if base.VMessOptions.OutboundTLSOptionsContainer.TLS != nil {
-		tls = base.VMessOptions.OutboundTLSOptionsContainer.TLS
-		transport = base.VMessOptions.Transport
-	}
-	if base.Type == C.TypeXray {
-		if configOpt.TLSTricks.EnableFragment {
-			if obj["xray_fragment"] == nil || obj["xray_fragment"].(map[string]any)["packets"] == "" {
-				obj["xray_fragment"] = map[string]any{
-					"packets":  "tlshello",
-					"length":   configOpt.TLSTricks.FragmentSize,
-					"interval": configOpt.TLSTricks.FragmentSleep,
-				}
-			}
-		}
-	}
-	if base.Type == C.TypeDirect {
-		return patchOutboundFragment(base, configOpt, obj)
-	}
-
-	if tls == nil || !tls.Enabled || transport == nil {
-		return obj
-	}
-
-	if transport.Type != C.V2RayTransportTypeWebsocket && transport.Type != C.V2RayTransportTypeGRPC && transport.Type != C.V2RayTransportTypeHTTPUpgrade {
-		return obj
-	}
-
-	if outtls, ok := obj["tls"].(map[string]interface{}); ok {
-		obj = patchOutboundFragment(base, configOpt, obj)
-		tlsTricks := tls.TLSTricks
-		if tlsTricks == nil {
-			tlsTricks = &option.TLSTricksOptions{}
-		}
-		tlsTricks.MixedCaseSNI = tlsTricks.MixedCaseSNI || configOpt.TLSTricks.MixedSNICase
-
-		if configOpt.TLSTricks.EnablePadding {
-			tlsTricks.PaddingMode = "random"
-			tlsTricks.PaddingSize = configOpt.TLSTricks.PaddingSize
-			// fmt.Printf("--------------------%+v----%+v", tlsTricks.PaddingSize, configOpt)
-			outtls["utls"] = map[string]interface{}{
-				"enabled":     true,
-				"fingerprint": "custom",
-			}
-		}
-
-		outtls["tls_tricks"] = tlsTricks
-		// if tlsTricks.MixedCaseSNI || tlsTricks.PaddingMode != "" {
-		// 	// } else {
-		// 	// 	tls["tls_tricks"] = nil
-		// }
-		// fmt.Printf("-------%+v------------- ", tlsTricks)
+	obj["tcp_fast_open"] = false
+	obj["tls_fragment"] = map[string]any{
+		"enabled": true,
+		"size":    configOpt.TLSTricks.FragmentSize,
+		"sleep":   configOpt.TLSTricks.FragmentSleep,
 	}
 	return obj
 }
 
-func patchOutboundFragment(base option.Outbound, configOpt HiddifyOptions, obj outboundMap) outboundMap {
-	if configOpt.TLSTricks.EnableFragment {
-		obj["tcp_fast_open"] = false
-		obj["tls_fragment"] = option.TLSFragmentOptions{
-			Enabled: configOpt.TLSTricks.EnableFragment,
-			Size:    configOpt.TLSTricks.FragmentSize,
-			Sleep:   configOpt.TLSTricks.FragmentSleep,
-		}
-
+func patchOutboundTLSTricks(obj outboundMap, configOpt RostovVPNOptions) outboundMap {
+	outType := obj.string("type")
+	if outType == C.TypeSelector || outType == C.TypeURLTest || outType == C.TypeBlock || outType == C.TypeDNS {
+		return obj
 	}
-
+	if isOutboundReality(obj) {
+		return obj
+	}
+	if outType == C.TypeDirect {
+		return patchOutboundFragment(obj, configOpt)
+	}
+	tlsMap, ok := obj.nestedMap("tls")
+	if !ok || !tlsMap.bool("enabled") {
+		return obj
+	}
+	if transport, ok := obj.nestedMap("transport"); ok {
+		typeValue := strings.ToLower(transport.string("type"))
+		switch typeValue {
+		case C.V2RayTransportTypeWebsocket, C.V2RayTransportTypeGRPC, C.V2RayTransportTypeHTTPUpgrade:
+			// continue
+		default:
+			return obj
+		}
+	}
+	obj = patchOutboundFragment(obj, configOpt)
+	tlsTricks := tlsMap.ensureNestedMap("tls_tricks")
+	if configOpt.TLSTricks.MixedSNICase {
+		tlsTricks["mixed_case_sni"] = true
+	}
+	if configOpt.TLSTricks.EnablePadding {
+		tlsTricks["padding_mode"] = "random"
+		tlsTricks["padding_size"] = configOpt.TLSTricks.PaddingSize
+		utls := tlsMap.ensureNestedMap("utls")
+		utls["enabled"] = true
+		utls["fingerprint"] = "custom"
+	}
 	return obj
 }
 
-func isOutboundReality(base option.Outbound) bool {
-	// this function checks reality status ONLY FOR VLESS.
-	// Some other protocols can also use reality, but it's discouraged as stated in the reality document
-	if base.Type != C.TypeVLESS {
+func isOutboundReality(obj outboundMap) bool {
+	if obj.string("type") != C.TypeVLESS {
 		return false
 	}
-	if base.VLESSOptions.OutboundTLSOptionsContainer.TLS == nil {
+	tlsMap, ok := obj.nestedMap("tls")
+	if !ok {
 		return false
 	}
-	if base.VLESSOptions.OutboundTLSOptionsContainer.TLS.Reality == nil {
+	reality, ok := tlsMap.nestedMap("reality")
+	if !ok {
 		return false
 	}
-	return base.VLESSOptions.OutboundTLSOptionsContainer.TLS.Reality.Enabled
+	return reality.bool("enabled")
 }
 
-func patchOutbound(base option.Outbound, configOpt HiddifyOptions, staticIpsDns map[string][]string) (*option.Outbound, string, error) {
+func detectServerDomain(obj outboundMap) string {
+	if detour := obj.string("detour"); detour != "" {
+		return ""
+	}
+	server := obj.string("server")
+	if server == "" || net.ParseIP(server) != nil {
+		return ""
+	}
+	return fmt.Sprintf("full:%s", server)
+}
+
+func patchOutbound(base option.Outbound, configOpt RostovVPNOptions, staticIPs map[string][]string) (*option.Outbound, string, error) {
 	formatErr := func(err error) error {
 		return fmt.Errorf("error patching outbound[%s][%s]: %w", base.Tag, base.Type, err)
 	}
-	err := patchWarp(&base, &configOpt, true, staticIpsDns)
+	obj, err := outboundToMap(base)
 	if err != nil {
 		return nil, "", formatErr(err)
 	}
-	var outbound option.Outbound
-
-	jsonData, err := base.MarshalJSON()
+	obj, err = patchWarpMap(obj, &configOpt, true, staticIPs)
 	if err != nil {
 		return nil, "", formatErr(err)
 	}
-
-	var obj outboundMap
-	err = json.Unmarshal(jsonData, &obj)
-	if err != nil {
-		return nil, "", formatErr(err)
-	}
-	var serverDomain string
-	if detour, ok := obj["detour"].(string); !ok || detour == "" {
-		if server, ok := obj["server"].(string); ok {
-			if server != "" && net.ParseIP(server) == nil {
-				serverDomain = fmt.Sprintf("full:%s", server)
-			}
-		}
-	}
-
-	obj = patchOutboundTLSTricks(base, configOpt, obj)
-
-	switch base.Type {
+	serverDomain := detectServerDomain(obj)
+	obj = patchOutboundTLSTricks(obj, configOpt)
+	switch obj.string("type") {
 	case C.TypeVMess, C.TypeVLESS, C.TypeTrojan, C.TypeShadowsocks:
-		obj = patchOutboundMux(base, configOpt, obj)
+		obj = patchOutboundMux(obj, configOpt)
 	}
-
-	modifiedJson, err := json.Marshal(obj)
+	outbound, err := mapToOutbound(obj)
 	if err != nil {
 		return nil, "", formatErr(err)
 	}
-
-	err = outbound.UnmarshalJSON(modifiedJson)
-	if err != nil {
-		return nil, "", formatErr(err)
-	}
-
 	return &outbound, serverDomain, nil
 }
-
-// func (o outboundMap) transportType() string {
-// 	if transport, ok := o["transport"].(map[string]interface{}); ok {
-// 		if transportType, ok := transport["type"].(string); ok {
-// 			return transportType
-// 		}
-// 	}
-// 	return ""
-// }

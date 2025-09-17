@@ -1,6 +1,6 @@
 package v2
 
-import pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
+import pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 
 const (
 	Stopped  = "Stopped"

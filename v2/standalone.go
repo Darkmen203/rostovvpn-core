@@ -14,15 +14,17 @@ import (
 	"time"
 
 	"github.com/Darkmen203/rostovvpn-core/config"
-	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
+	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 
+	"github.com/sagernet/sing-box/experimental/libbox"
 	"github.com/sagernet/sing-box/option"
+	singjson "github.com/sagernet/sing/common/json"
 )
 
-func RunStandalone(hiddifySettingPath string, configPath string, defaultConfig config.HiddifyOptions) error {
+func RunStandalone(rostovvpnSettingPath string, configPath string, defaultConfig config.RostovVPNOptions) error {
 	fmt.Println("Running in standalone mode")
 	useFlutterBridge = false
-	current, err := readAndBuildConfig(hiddifySettingPath, configPath, &defaultConfig)
+	current, err := readAndBuildConfig(rostovvpnSettingPath, configPath, &defaultConfig)
 	if err != nil {
 		fmt.Printf("Error in read and build config %v", err)
 		return err
@@ -34,7 +36,7 @@ func RunStandalone(hiddifySettingPath string, configPath string, defaultConfig c
 		DelayStart:             false,
 		EnableRawConfig:        true,
 	})
-	go updateConfigInterval(current, hiddifySettingPath, configPath)
+	go updateConfigInterval(current, rostovvpnSettingPath, configPath)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -48,12 +50,12 @@ func RunStandalone(hiddifySettingPath string, configPath string, defaultConfig c
 }
 
 type ConfigResult struct {
-	Config                string
-	RefreshInterval       int
-	HiddifyHiddifyOptions *config.HiddifyOptions
+	Config                  string
+	RefreshInterval         int
+	RostovvpnRostovVPNOptions *config.RostovVPNOptions
 }
 
-func readAndBuildConfig(hiddifySettingPath string, configPath string, defaultConfig *config.HiddifyOptions) (ConfigResult, error) {
+func readAndBuildConfig(rostovvpnSettingPath string, configPath string, defaultConfig *config.RostovVPNOptions) (ConfigResult, error) {
 	var result ConfigResult
 
 	result, err := readConfigContent(configPath)
@@ -61,21 +63,21 @@ func readAndBuildConfig(hiddifySettingPath string, configPath string, defaultCon
 		return result, err
 	}
 
-	hiddifyconfig := config.DefaultHiddifyOptions()
+	rostovvpnconfig := config.DefaultRostovVPNOptions()
 
 	if defaultConfig != nil {
-		hiddifyconfig = defaultConfig
+		rostovvpnconfig = defaultConfig
 	}
 
-	if hiddifySettingPath != "" {
-		hiddifyconfig, err = ReadHiddifyOptionsAt(hiddifySettingPath)
+	if rostovvpnSettingPath != "" {
+		rostovvpnconfig, err = ReadRostovVPNOptionsAt(rostovvpnSettingPath)
 		if err != nil {
 			return result, err
 		}
 	}
 
-	result.HiddifyHiddifyOptions = hiddifyconfig
-	result.Config, err = buildConfig(result.Config, *result.HiddifyHiddifyOptions)
+	result.RostovvpnRostovVPNOptions = rostovvpnconfig
+	result.Config, err = buildConfig(result.Config, *result.RostovvpnRostovVPNOptions)
 	if err != nil {
 		return result, err
 	}
@@ -96,7 +98,7 @@ func readConfigContent(configPath string) (ConfigResult, error) {
 			fmt.Println("Error creating request:", err)
 			return ConfigResult{}, err
 		}
-		req.Header.Set("User-Agent", "HiddifyNext/2.3.1 ("+runtime.GOOS+") like ClashMeta v2ray sing-box")
+		req.Header.Set("User-Agent", "RostovVPN/2.3.1 ("+runtime.GOOS+") like ClashMeta v2ray sing-box")
 		resp, err := client.Do(req)
 		if err != nil {
 			fmt.Println("Error making GET request:", err)
@@ -151,7 +153,7 @@ func extractRefreshInterval(header http.Header, bodyStr string) (int, error) {
 	return 0, nil
 }
 
-func buildConfig(configContent string, options config.HiddifyOptions) (string, error) {
+func buildConfig(configContent string, options config.RostovVPNOptions) (string, error) {
 	parsedContent, err := config.ParseConfigContent(configContent, true, &options, false)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse config content: %w", err)
@@ -188,14 +190,14 @@ func buildConfig(configContent string, options config.HiddifyOptions) (string, e
 	return configStr, nil
 }
 
-func updateConfigInterval(current ConfigResult, hiddifySettingPath string, configPath string) {
+func updateConfigInterval(current ConfigResult, rostovvpnSettingPath string, configPath string) {
 	if current.RefreshInterval <= 0 {
 		return
 	}
 
 	for {
 		<-time.After(time.Duration(current.RefreshInterval) * time.Hour)
-		new, err := readAndBuildConfig(hiddifySettingPath, configPath, current.HiddifyHiddifyOptions)
+		new, err := readAndBuildConfig(rostovvpnSettingPath, configPath, current.RostovvpnRostovVPNOptions)
 		if err != nil {
 			continue
 		}
@@ -214,20 +216,20 @@ func updateConfigInterval(current ConfigResult, hiddifySettingPath string, confi
 }
 
 func readConfigBytes(content []byte) (*option.Options, error) {
-	var options option.Options
-	err := options.UnmarshalJSON(content)
+	ctx := libbox.BaseContext(nil)
+	parsed, err := singjson.UnmarshalExtendedContext[option.Options](ctx, content)
 	if err != nil {
 		return nil, err
 	}
-	return &options, nil
+	return &parsed, nil
 }
 
-func ReadHiddifyOptionsAt(path string) (*config.HiddifyOptions, error) {
+func ReadRostovVPNOptionsAt(path string) (*config.RostovVPNOptions, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	var options config.HiddifyOptions
+	var options config.RostovVPNOptions
 	err = json.Unmarshal(content, &options)
 	if err != nil {
 		return nil, err

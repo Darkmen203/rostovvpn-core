@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"time"
 
-	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
+	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 	"github.com/sagernet/sing-box/option"
 	dns "github.com/sagernet/sing-dns"
 	grpc "google.golang.org/grpc"
@@ -28,7 +28,7 @@ func isSupportedOS() bool {
 	return runtime.GOOS == "windows" || runtime.GOOS == "linux"
 }
 
-func ActivateTunnelService(opt HiddifyOptions) (bool, error) {
+func ActivateTunnelService(opt RostovVPNOptions) (bool, error) {
 	tunnelServiceRunning = true
 	// if !isSupportedOS() {
 	// 	return false, E.New("Unsupported OS: " + runtime.GOOS)
@@ -60,7 +60,7 @@ func DeactivateTunnelService() (bool, error) {
 	return true, nil
 }
 
-func startTunnelRequestWithFailover(opt HiddifyOptions, installService bool) {
+func startTunnelRequestWithFailover(opt RostovVPNOptions, installService bool) {
 	res, err := startTunnelRequest(opt, installService)
 	fmt.Printf("Start Tunnel Result: %v\n", res)
 	if err != nil {
@@ -78,7 +78,7 @@ func isPortInUse(port string) bool {
 	return false // Port is available
 }
 
-func startTunnelRequest(opt HiddifyOptions, installService bool) (bool, error) {
+func startTunnelRequest(opt RostovVPNOptions, installService bool) (bool, error) {
 	if !isPortInUse("18020") {
 		if installService {
 			return runTunnelService(opt)
@@ -155,7 +155,7 @@ func ExitTunnelService() (bool, error) {
 	return true, nil
 }
 
-func runTunnelService(opt HiddifyOptions) (bool, error) {
+func runTunnelService(opt RostovVPNOptions) (bool, error) {
 	executablePath := getTunnelServicePath()
 	fmt.Printf("Executable path is %s", executablePath)
 	out, err := ExecuteCmd(executablePath, false, "tunnel", "install")

@@ -3,7 +3,7 @@ const extension = require("./extension_grpc_web_pb.js");
 
 const { renderForm } = require('./formRenderer.js');
 const { listExtensions } = require('./extensionList.js');
-var currentExtensionId = undefined;
+let currentExtensionId;
 function openExtensionPage(extensionId) {
     currentExtensionId = extensionId;
     $("#extension-list-container").hide();
@@ -21,8 +21,8 @@ function connect() {
     stream.on('data', (response) => {
         console.log('Receiving ', response);
         if (response.getExtensionId() === currentExtensionId) {
-            ui = JSON.parse(response.getJsonUi())
-            if (response.getType() == proto.hiddifyrpc.ExtensionResponseType.SHOW_DIALOG) {
+            const ui = JSON.parse(response.getJsonUi())
+            if (response.getType() == proto.rostovvpnrpc.ExtensionResponseType.SHOW_DIALOG) {
                 renderForm(ui, "dialog", handleSubmitButtonClick, undefined);
             } else {
                 renderForm(ui, "", handleSubmitButtonClick, handleStopButtonClick);

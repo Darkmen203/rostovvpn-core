@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
+	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 	"github.com/sagernet/sing-box/experimental/libbox"
 	"google.golang.org/grpc"
 )
@@ -90,7 +90,7 @@ func (s *CoreService) MainOutboundsInfo(req *pb.Empty, stream grpc.ServerStreami
 		groupInfoOnlyClient = libbox.NewCommandClient(
 			&CommandClientHandler{},
 			&libbox.CommandClientOptions{
-				Command:        libbox.CommandGroupInfoOnly,
+				Command:        libbox.CommandGroupExpand,
 				StatusInterval: 500000000, // 500ms debounce
 			},
 		)

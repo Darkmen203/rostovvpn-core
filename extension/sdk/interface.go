@@ -12,13 +12,13 @@ import (
 	"github.com/sagernet/sing-box/option"
 )
 
-func RunInstance(hiddifySettings *config.HiddifyOptions, singconfig *option.Options) (*v2.HiddifyService, error) {
-	return v2.RunInstance(hiddifySettings, singconfig)
+func RunInstance(rostovVPNSettings *config.RostovVPNOptions, singconfig *option.Options) (*v2.RostovVPNService, error) {
+	return v2.RunInstance(rostovVPNSettings, singconfig)
 }
 
-func ParseConfig(hiddifySettings *config.HiddifyOptions, configStr string) (*option.Options, error) {
-	if hiddifySettings == nil {
-		hiddifySettings = config.DefaultHiddifyOptions()
+func ParseConfig(rostovVPNSettings *config.RostovVPNOptions, configStr string) (*option.Options, error) {
+	if rostovVPNSettings == nil {
+		rostovVPNSettings = config.DefaultRostovVPNOptions()
 	}
 	if strings.HasPrefix(configStr, "http://") || strings.HasPrefix(configStr, "https://") {
 		client := &http.Client{}
@@ -29,7 +29,7 @@ func ParseConfig(hiddifySettings *config.HiddifyOptions, configStr string) (*opt
 			fmt.Println("Error creating request:", err)
 			return nil, err
 		}
-		req.Header.Set("User-Agent", "HiddifyNext/2.3.1 ("+runtime.GOOS+") like ClashMeta v2ray sing-box")
+		req.Header.Set("User-Agent", "RostovVPN/2.3.1 ("+runtime.GOOS+") like ClashMeta v2ray sing-box")
 		resp, err := client.Do(req)
 		if err != nil {
 			fmt.Println("Error making GET request:", err)
@@ -43,5 +43,5 @@ func ParseConfig(hiddifySettings *config.HiddifyOptions, configStr string) (*opt
 		}
 		configStr = string(body)
 	}
-	return config.ParseConfigContentToOptions(configStr, true, hiddifySettings, false)
+	return config.ParseConfigContentToOptions(configStr, true, rostovVPNSettings, false)
 }

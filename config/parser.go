@@ -31,7 +31,7 @@ func ParseConfig(path string, debug bool) ([]byte, error) {
 	return ParseConfigContent(string(content), debug, nil, false)
 }
 
-func ParseConfigContentToOptions(contentstr string, debug bool, configOpt *HiddifyOptions, fullConfig bool) (*option.Options, error) {
+func ParseConfigContentToOptions(contentstr string, debug bool, configOpt *RostovVPNOptions, fullConfig bool) (*option.Options, error) {
 	content, err := ParseConfigContent(contentstr, debug, configOpt, fullConfig)
 	if err != nil {
 		return nil, err
@@ -44,9 +44,9 @@ func ParseConfigContentToOptions(contentstr string, debug bool, configOpt *Hiddi
 	return &options, nil
 }
 
-func ParseConfigContent(contentstr string, debug bool, configOpt *HiddifyOptions, fullConfig bool) ([]byte, error) {
+func ParseConfigContent(contentstr string, debug bool, configOpt *RostovVPNOptions, fullConfig bool) ([]byte, error) {
 	if configOpt == nil {
-		configOpt = DefaultHiddifyOptions()
+		configOpt = DefaultRostovVPNOptions()
 	}
 	content := []byte(contentstr)
 	var jsonObj map[string]interface{} = make(map[string]interface{})
@@ -101,7 +101,7 @@ func ParseConfigContent(contentstr string, debug bool, configOpt *HiddifyOptions
 	return nil, fmt.Errorf("unable to determine config format")
 }
 
-func patchConfig(content []byte, name string, configOpt *HiddifyOptions) ([]byte, error) {
+func patchConfig(content []byte, name string, configOpt *RostovVPNOptions) ([]byte, error) {
 	options := option.Options{}
 	err := json.Unmarshal(content, &options)
 	if err != nil {
@@ -111,12 +111,19 @@ func patchConfig(content []byte, name string, configOpt *HiddifyOptions) ([]byte
 	for _, base := range options.Outbounds {
 		out := base
 		b.Go(base.Tag, func() (*option.Outbound, error) {
-			err := patchWarp(&out, configOpt, false, nil)
+			obj, err := outboundToMap(out)
+			if err != nil {
+				return nil, err
+			}
+			obj, err = patchWarpMap(obj, configOpt, false, nil)
 			if err != nil {
 				return nil, fmt.Errorf("[Warp] patch warp error: %w", err)
 			}
-			// options.Outbounds[i] = base
-			return &out, nil
+			updated, err := mapToOutbound(obj)
+			if err != nil {
+				return nil, err
+			}
+			return &updated, nil
 		})
 	}
 	if res, err := b.WaitAndGetResult(); err != nil {

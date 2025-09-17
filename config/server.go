@@ -2,6 +2,7 @@ package config
 
 import (
 	context "context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -39,14 +40,10 @@ func (s *server) GenerateFullConfig(ctx context.Context, in *GenerateConfigReque
 		return nil, err
 	}
 	var options option.Options
-	err = options.UnmarshalJSON(content)
-	if err != nil {
+	if err := json.Unmarshal(content, &options); err != nil {
 		return nil, err
 	}
-	if err != nil {
-		return nil, err
-	}
-	config, err := BuildConfigJson(*DefaultHiddifyOptions(), options)
+	config, err := BuildConfigJson(*DefaultRostovVPNOptions(), options)
 	if err != nil {
 		return nil, err
 	}

@@ -1,3 +1,5 @@
+//go:build bydll
+
 package main
 
 /*

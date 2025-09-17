@@ -19,7 +19,7 @@ var commandService = &cobra.Command{
 		arg := args[0]
 		switch arg {
 		case "activate":
-			config.ActivateTunnelService(config.HiddifyOptions{
+			config.ActivateTunnelService(config.RostovVPNOptions{
 				InboundOptions: config.InboundOptions{
 					EnableTunService: true,
 					MixedPort:        12334,

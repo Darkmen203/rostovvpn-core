@@ -24,33 +24,33 @@ func getRandomAvailblePort() uint16 {
 	return uint16(listener.Addr().(*net.TCPAddr).Port)
 }
 
-func RunInstanceString(hiddifySettings *config.HiddifyOptions, proxiesInput string) (*HiddifyService, error) {
-	if hiddifySettings == nil {
-		hiddifySettings = config.DefaultHiddifyOptions()
+func RunInstanceString(rostovVPNSettings *config.RostovVPNOptions, proxiesInput string) (*RostovVPNService, error) {
+	if rostovVPNSettings == nil {
+		rostovVPNSettings = config.DefaultRostovVPNOptions()
 	}
-	singconfigs, err := config.ParseConfigContentToOptions(proxiesInput, true, hiddifySettings, false)
+	singconfigs, err := config.ParseConfigContentToOptions(proxiesInput, true, rostovVPNSettings, false)
 	if err != nil {
 		return nil, err
 	}
-	return RunInstance(hiddifySettings, singconfigs)
+	return RunInstance(rostovVPNSettings, singconfigs)
 }
 
-func RunInstance(hiddifySettings *config.HiddifyOptions, singconfig *option.Options) (*HiddifyService, error) {
-	if hiddifySettings == nil {
-		hiddifySettings = config.DefaultHiddifyOptions()
+func RunInstance(rostovVPNSettings *config.RostovVPNOptions, singconfig *option.Options) (*RostovVPNService, error) {
+	if rostovVPNSettings == nil {
+		rostovVPNSettings = config.DefaultRostovVPNOptions()
 	}
-	hiddifySettings.EnableClashApi = false
-	hiddifySettings.InboundOptions.MixedPort = getRandomAvailblePort()
-	hiddifySettings.InboundOptions.EnableTun = false
-	hiddifySettings.InboundOptions.EnableTunService = false
-	hiddifySettings.InboundOptions.SetSystemProxy = false
-	hiddifySettings.InboundOptions.TProxyPort = 0
-	hiddifySettings.InboundOptions.LocalDnsPort = 0
-	hiddifySettings.Region = "other"
-	hiddifySettings.BlockAds = false
-	hiddifySettings.LogFile = "/dev/null"
+	rostovVPNSettings.EnableClashApi = false
+	rostovVPNSettings.InboundOptions.MixedPort = getRandomAvailblePort()
+	rostovVPNSettings.InboundOptions.EnableTun = false
+	rostovVPNSettings.InboundOptions.EnableTunService = false
+	rostovVPNSettings.InboundOptions.SetSystemProxy = false
+	rostovVPNSettings.InboundOptions.TProxyPort = 0
+	rostovVPNSettings.InboundOptions.LocalDnsPort = 0
+	rostovVPNSettings.Region = "other"
+	rostovVPNSettings.BlockAds = false
+	rostovVPNSettings.LogFile = "/dev/null"
 
-	finalConfigs, err := config.BuildConfig(*hiddifySettings, *singconfig)
+	finalConfigs, err := config.BuildConfig(*rostovVPNSettings, *singconfig)
 	if err != nil {
 		return nil, err
 	}
@@ -64,27 +64,27 @@ func RunInstance(hiddifySettings *config.HiddifyOptions, singconfig *option.Opti
 		return nil, err
 	}
 	<-time.After(250 * time.Millisecond)
-	hservice := &HiddifyService{libbox: instance, ListenPort: hiddifySettings.InboundOptions.MixedPort}
+	hservice := &RostovVPNService{libbox: instance, ListenPort: rostovVPNSettings.InboundOptions.MixedPort}
 	hservice.PingCloudflare()
 	return hservice, nil
 }
 
-type HiddifyService struct {
+type RostovVPNService struct {
 	libbox     *libbox.BoxService
 	ListenPort uint16
 }
 
 // dialer, err := s.libbox.GetInstance().Router().Dialer(context.Background())
 
-func (s *HiddifyService) Close() error {
+func (s *RostovVPNService) Close() error {
 	return s.libbox.Close()
 }
 
-func (s *HiddifyService) GetContent(url string) (string, error) {
+func (s *RostovVPNService) GetContent(url string) (string, error) {
 	return s.ContentFromURL("GET", url, 10*time.Second)
 }
 
-func (s *HiddifyService) ContentFromURL(method string, url string, timeout time.Duration) (string, error) {
+func (s *RostovVPNService) ContentFromURL(method string, url string, timeout time.Duration) (string, error) {
 	if method == "" {
 		return "", fmt.Errorf("empty method")
 	}
@@ -133,15 +133,15 @@ func (s *HiddifyService) ContentFromURL(method string, url string, timeout time.
 	return string(body), nil
 }
 
-func (s *HiddifyService) PingCloudflare() (time.Duration, error) {
+func (s *RostovVPNService) PingCloudflare() (time.Duration, error) {
 	return s.Ping("http://cp.cloudflare.com")
 }
 
-// func (s *HiddifyService) RawConnection(ctx context.Context, url string) (net.Conn, error) {
+// func (s *RostovVPNService) RawConnection(ctx context.Context, url string) (net.Conn, error) {
 // 	return
 // }
 
-func (s *HiddifyService) PingAverage(url string, count int) (time.Duration, error) {
+func (s *RostovVPNService) PingAverage(url string, count int) (time.Duration, error) {
 	if count <= 0 {
 		return -1, fmt.Errorf("count must be greater than 0")
 	}
@@ -161,7 +161,7 @@ func (s *HiddifyService) PingAverage(url string, count int) (time.Duration, erro
 	return time.Duration(sum / real_count * int(time.Millisecond)), nil
 }
 
-func (s *HiddifyService) Ping(url string) (time.Duration, error) {
+func (s *RostovVPNService) Ping(url string) (time.Duration, error) {
 	startTime := time.Now()
 	_, err := s.ContentFromURL("HEAD", url, 4*time.Second)
 	if err != nil {

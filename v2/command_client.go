@@ -1,7 +1,7 @@
 package v2
 
 import (
-	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
+	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 	"github.com/sagernet/sing-box/experimental/libbox"
 	"github.com/sagernet/sing-box/log"
 )
@@ -19,12 +19,15 @@ func (cch *CommandClientHandler) Disconnected(message string) {
 	cch.logger.Debug("DISCONNECTED: ", message)
 }
 
-func (cch *CommandClientHandler) ClearLog() {
-	cch.logger.Debug("clear log")
+func (cch *CommandClientHandler) ClearLogs() {
+	cch.logger.Debug("clear logs")
 }
 
-func (cch *CommandClientHandler) WriteLog(message string) {
-	cch.logger.Debug("log: ", message)
+func (cch *CommandClientHandler) WriteLogs(messageList libbox.StringIterator) {
+	for messageList != nil && messageList.HasNext() {
+		message := messageList.Next()
+		cch.logger.Debug("log: ", message)
+	}
 }
 
 func (cch *CommandClientHandler) WriteStatus(message *libbox.StatusMessage) {
@@ -74,4 +77,19 @@ func (cch *CommandClientHandler) InitializeClashMode(modeList libbox.StringItera
 
 func (cch *CommandClientHandler) UpdateClashMode(newMode string) {
 	cch.logger.Debug("update clash mode: ", newMode)
+}
+
+func (cch *CommandClientHandler) WriteConnections(message *libbox.Connections) {
+	if message == nil {
+		return
+	}
+	message.FilterState(libbox.ConnectionStateAll)
+	iter := message.Iterator()
+	count := 0
+	for iter != nil && iter.HasNext() {
+		if iter.Next() != nil {
+			count++
+		}
+	}
+	cch.logger.Debug("connections update count: ", count)
 }

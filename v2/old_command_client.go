@@ -26,12 +26,16 @@ func (cch *OldCommandClientHandler) Disconnected(message string) {
 	cch.logger.Debug("DISCONNECTED: ", message)
 }
 
-func (cch *OldCommandClientHandler) ClearLog() {
+func (cch *OldCommandClientHandler) ClearLogs() {
 	cch.logger.Debug("clear log")
 }
 
-func (cch *OldCommandClientHandler) WriteLog(message string) {
-	cch.logger.Debug("log: ", message)
+func (cch *OldCommandClientHandler) WriteLogs(messageList libbox.StringIterator) {
+	for messageList != nil && messageList.HasNext() {
+		message := messageList.Next()
+		cch.logger.Debug("log: ", message)
+		bridge.SendStringToPort(cch.port, message)
+	}
 }
 
 func (cch *OldCommandClientHandler) WriteStatus(message *libbox.StatusMessage) {
@@ -89,6 +93,62 @@ func (cch *OldCommandClientHandler) InitializeClashMode(modeList libbox.StringIt
 
 func (cch *OldCommandClientHandler) UpdateClashMode(newMode string) {
 	cch.logger.Debug("update clash mode: ", newMode)
+}
+
+func (cch *OldCommandClientHandler) WriteConnections(message *libbox.Connections) {
+	if message == nil {
+		return
+	}
+	message.FilterState(libbox.ConnectionStateAll)
+	iter := message.Iterator()
+	type connectionInfo struct {
+		ID            string `json:"id"`
+		Inbound       string `json:"inbound"`
+		Outbound      string `json:"outbound"`
+		Network       string `json:"network"`
+		Source        string `json:"source"`
+		Destination   string `json:"destination"`
+		Protocol      string `json:"protocol"`
+		User          string `json:"user"`
+		CreatedAt     int64  `json:"created_at"`
+		ClosedAt      int64  `json:"closed_at"`
+		Uplink        int64  `json:"uplink"`
+		Downlink      int64  `json:"downlink"`
+		UplinkTotal   int64  `json:"uplink_total"`
+		DownlinkTotal int64  `json:"downlink_total"`
+	}
+	connections := make([]connectionInfo, 0)
+	for iter != nil && iter.HasNext() {
+		conn := iter.Next()
+		if conn == nil {
+			continue
+		}
+		connections = append(connections, connectionInfo{
+			ID:            conn.ID,
+			Inbound:       conn.Inbound,
+			Outbound:      conn.Outbound,
+			Network:       conn.Network,
+			Source:        conn.Source,
+			Destination:   conn.Destination,
+			Protocol:      conn.Protocol,
+			User:          conn.User,
+			CreatedAt:     conn.CreatedAt,
+			ClosedAt:      conn.ClosedAt,
+			Uplink:        conn.Uplink,
+			Downlink:      conn.Downlink,
+			UplinkTotal:   conn.UplinkTotal,
+			DownlinkTotal: conn.DownlinkTotal,
+		})
+	}
+	if len(connections) == 0 {
+		return
+	}
+	payload, err := json.Marshal(connections)
+	if err != nil {
+		cch.logger.Error("marshal connections: ", err)
+		return
+	}
+	bridge.SendStringToPort(cch.port, string(payload))
 }
 
 type OutboundGroup struct {

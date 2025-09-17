@@ -3,7 +3,7 @@ package v2
 import (
 	"context"
 
-	pb "github.com/Darkmen203/rostovvpn-core/hiddifyrpc"
+	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 	"github.com/sagernet/sing-box/experimental/libbox"
 )
 

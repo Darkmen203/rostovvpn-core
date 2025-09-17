@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/Darkmen203/rostovvpn-core/v2/db"
-	"github.com/sagernet/sing-box/log"
-
 	"github.com/Darkmen203/rostovvpn-core/v2/service_manager"
+	"github.com/sagernet/sing-box/adapter"
+	"github.com/sagernet/sing-box/log"
 )
 
 var (
@@ -42,22 +42,25 @@ func loadExtension(factory ExtensionFactory) error {
 	extension := factory.Builder()
 	extension.init(factory.Id)
 
-	// fmt.Printf("Registered extension: %+v\n", extension)
 	enabledExtensionsMap[factory.Id] = &extension
 
 	return nil
 }
 
-type extensionService struct {
-	// Storage *CacheFile
+type extensionService struct{}
+
+func (s *extensionService) Start(stage adapter.StartStage) error {
+	if stage != adapter.StartStateStart {
+		return nil
+	}
+	return s.start()
 }
 
-func (s *extensionService) Start() error {
+func (s *extensionService) start() error {
 	table := db.GetTable[extensionData]()
 
 	for _, factory := range allExtensionsMap {
 		data, err := table.Get(factory.Id)
-
 		if data == nil || err != nil {
 			log.Warn("Data of Extension ", factory.Id, " not found, creating new one")
 			data = &extensionData{Id: factory.Id, Enable: false}
@@ -85,6 +88,10 @@ func (s *extensionService) Close() error {
 	}
 	return nil
 }
+
+func (s *extensionService) Type() string { return "extension" }
+
+func (s *extensionService) Tag() string { return "extension-service" }
 
 func init() {
 	service_manager.Register(&extensionService{})
