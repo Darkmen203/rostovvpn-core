@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/hiddify/ray2sing/ray2sing"
+	"github.com/Darkmen203/ray2sing/ray2sing"
 	"github.com/sagernet/sing-box/experimental/libbox"
 	"github.com/sagernet/sing-box/option"
 	"github.com/sagernet/sing/common/batch"

@@ -30,7 +30,7 @@ define Package/rostovvpn-core
   CATEGORY:=Network
   URL:=https://rostov.darkmen203.ru/
   DEPENDS:=$(GO_ARCH_DEPENDS) +ca-bundle +kmod-inet-diag +kmod-tun
-  USERID:=hiddify=15566:hiddify=15566
+  USERID:=rostovvpn=61566:rostovvpn=61566
 endef
 
 define Package/rostovvpn-core/description

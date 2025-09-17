@@ -103,8 +103,8 @@ require (
 )
 
 require (
+	github.com/Darkmen203/ray2sing v0.0.0-20250917072930-914f270bd17c
 	github.com/Darkmen203/rostovvpn-app-demo-extension v0.0.0-20250118135933-997f1513bbfe
-	github.com/hiddify/ray2sing v0.0.0-20240804185422-f340989b59a0
 )
 
 require (
@@ -172,4 +172,4 @@ replace github.com/bepass-org/warp-plus => github.com/Darkmen203/warp-plus v0.0.
 
 replace github.com/syndtr/goleveldb => github.com/syndtr/goleveldb v1.0.0
 
-replace github.com/hiddify/ray2sing => github.com/Darkmen203/ray2sing v0.0.0-20250917072930-914f270bd17c
+replace github.com/Darkmen203/ray2sing => github.com/Darkmen203/ray2sing v0.0.0-20250917072930-914f270bd17c
