@@ -104,7 +104,8 @@ require (
 
 require (
 	github.com/Darkmen203/ray2sing v0.0.0-20250917072930-914f270bd17c
-	github.com/Darkmen203/rostovvpn-app-demo-extension v0.0.0-20250118135933-997f1513bbfe
+	github.com/Darkmen203/rostovvpn-app-demo-extension v0.0.0-20250917202306-2e4594ab2e05
+	github.com/Darkmen203/rostovvpn-ip-scanner-extension v0.0.0-20250917202754-03bcaee72452 // indirect
 )
 
 require (
@@ -140,6 +141,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/onsi/gomega v1.33.1 // indirect
 	github.com/prometheus-community/pro-bing v0.4.0 // indirect
+	github.com/rodaine/table v1.1.1 // indirect
 	github.com/safchain/ethtool v0.3.0 // indirect
 	github.com/sagernet/cors v1.2.1 // indirect
 	github.com/sagernet/fswatch v0.1.1 // indirect
