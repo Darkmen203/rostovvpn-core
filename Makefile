@@ -45,7 +45,7 @@ ios: lib_install
 
 
 webui:
-	curl -L -o webui.zip  https://github.com/hiddify/Yacd-meta/archive/gh-pages.zip 
+	curl -L -o webui.zip  https://github.com/Darkmen203/Yacd-meta/archive/gh-pages.zip 
 	unzip -d ./ -q webui.zip
 	rm webui.zip
 	rm -rf bin/webui
