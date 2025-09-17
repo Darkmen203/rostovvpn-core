@@ -9,8 +9,8 @@ github.com/Darkmen203/ray2sing v0.0.0-20250917072930-914f270bd17c h1:CDI8mR/GqZj
 github.com/Darkmen203/ray2sing v0.0.0-20250917072930-914f270bd17c/go.mod h1:G+h8L0c+Kfr9HoQYTN/CROQZv8rdMPuCDZ8YBfNpmrc=
 github.com/Darkmen203/rostovvpn-app-demo-extension v0.0.0-20250118135933-997f1513bbfe h1:sGKHfIJfPORD4ZwtpuTzKnsVwBLcRl9wD5o1nP0S6eE=
 github.com/Darkmen203/rostovvpn-app-demo-extension v0.0.0-20250118135933-997f1513bbfe/go.mod h1:oxsNKWxgsVjfdAiWH5rbwkNAfnMRidYxLOAUyJrTRoI=
-github.com/Darkmen203/rostovvpn-sing-box v0.0.0-20250915165931-d663278d664b h1:8Qn19AG2Sc/8fiqmnzwfxNBb0G8e9Y1UUUK8BZqqj+4=
-github.com/Darkmen203/rostovvpn-sing-box v0.0.0-20250915165931-d663278d664b/go.mod h1:FXKuFlbqz+sAXJr2YbGcCr4YsPhHU+IX3HeVvMup3Ag=
+github.com/Darkmen203/rostovvpn-sing-box v0.0.0-20250917141731-ff7dd92fb57b h1:6n9p+edrsVPj6GyDVIL5C/576gLYhf+XEXDxoX1q4V0=
+github.com/Darkmen203/rostovvpn-sing-box v0.0.0-20250917141731-ff7dd92fb57b/go.mod h1:kM/4D7+qqHBX/dMPPqn4f+XrPaqXZ3k+M+HWPxiQzfA=
 github.com/Darkmen203/warp-plus v0.0.0-20250914174007-d0abc5061784 h1:2TFZ2G06Fyb/7StStpwx1B48Bts+ei2ds6Ov5h2yNYE=
 github.com/Darkmen203/warp-plus v0.0.0-20250914174007-d0abc5061784/go.mod h1:uSRUbr1CcvFrEV69FTvuJFwpzEmwO8N4knb6+Zq3Ys4=
 github.com/DataDog/zstd v1.4.1 h1:3oxKN3wbHibqx897utPC2LTQU4J+IHWWJO+glkAkpFM=
@@ -90,6 +90,10 @@ github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6N
 github.com/creack/pty v1.1.7/go.mod h1:lj5s0c3V2DBrqTV7llrYr5NG6My20zk30Fl46Y7DoTY=
 github.com/cretz/bine v0.2.0 h1:8GiDRGlTgz+o8H9DSnsl+5MeBK4HsExxgl6WgzOCuZo=
 github.com/cretz/bine v0.2.0/go.mod h1:WU4o9QR9wWp8AVKtTM1XD5vUHkEqnf2vVSo6dBqbetI=
+github.com/database64128/netx-go v0.0.0-20240905055117-62795b8b054a h1:t4SDi0pmNkryzKdM4QF3o5vqSP4GRjeZD/6j3nyxNP0=
+github.com/database64128/netx-go v0.0.0-20240905055117-62795b8b054a/go.mod h1:7K2NQKbabB5mBl41vF6YayYl5g7YpDwc4dQ5iMpP3Lg=
+github.com/database64128/tfo-go/v2 v2.2.2 h1:BxynF4qGF5ct3DpPLEG62uyJZ3LQhqaf0Ken+kyy7PM=
+github.com/database64128/tfo-go/v2 v2.2.2/go.mod h1:2IW8jppdBwdVMjA08uEyMNnqiAHKUlqAA+J8NrsfktY=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
@@ -354,8 +358,6 @@ github.com/mdlayher/sdnotify v1.0.0 h1:Ma9XeLVN/l0qpyx1tNeMSeTjCPH6NtuD6/N9XdTlQ
 github.com/mdlayher/sdnotify v1.0.0/go.mod h1:HQUmpM4XgYkhDLtd+Uad8ZFK1T9D5+pNxnXQjCeJlGE=
 github.com/mdlayher/socket v0.5.1 h1:VZaqt6RkGkt2OE9l3GcC6nZkqD3xKeQLyfleW/uBcos=
 github.com/mdlayher/socket v0.5.1/go.mod h1:TjPLHI1UgwEv5J1B5q0zTZq12A/6H7nKmtTanQE37IQ=
-github.com/metacubex/tfo-go v0.0.0-20250516165257-e29c16ae41d4 h1:j1VRTiC9JLR4nUbSikx9OGdu/3AgFDqgcLj4GoqyQkc=
-github.com/metacubex/tfo-go v0.0.0-20250516165257-e29c16ae41d4/go.mod h1:l9oLnLoEXyGZ5RVLsh7QCC5XsouTUyKk4F2nLm2DHLw=
 github.com/metacubex/utls v1.8.0 h1:mSYi6FMnmc5riARl5UZDmWVy710z+P5b7xuGW0lV9ac=
 github.com/metacubex/utls v1.8.0/go.mod h1:FdjYzVfCtgtna19hX0ER1Xsa5uJInwdQ4IcaaI98lEQ=
 github.com/mholt/acmez/v3 v3.1.2 h1:auob8J/0FhmdClQicvJvuDavgd5ezwLBfKuYmynhYzc=

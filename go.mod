@@ -49,7 +49,6 @@ require (
 	github.com/logrusorgru/aurora v2.0.3+incompatible // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/metacubex/tfo-go v0.0.0-20250516165257-e29c16ae41d4 // indirect
 	github.com/miekg/dns v1.1.68 // indirect
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -72,7 +71,7 @@ require (
 	github.com/sagernet/sing-tun v0.8.0-beta.10 // indirect
 	github.com/sagernet/sing-vmess v0.2.8-0.20250909125414-3aed155119a1 // indirect
 	github.com/sagernet/smux v1.5.34-mod.2 // indirect
-	github.com/sagernet/wireguard-go v0.0.2-beta.1 // indirect
+	github.com/sagernet/wireguard-go v0.0.2-beta.1.0.20250917110311-16510ac47288 // indirect
 	github.com/sagernet/ws v0.0.0-20231204124109-acfe8907c854 // indirect
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.6 // indirect
@@ -116,6 +115,8 @@ require (
 	github.com/caddyserver/zerossl v0.1.3 // indirect
 	github.com/coder/websocket v1.8.13 // indirect
 	github.com/coreos/go-iptables v0.7.1-0.20240112124308-65c67c9f46e6 // indirect
+	github.com/database64128/netx-go v0.0.0-20240905055117-62795b8b054a // indirect
+	github.com/database64128/tfo-go/v2 v2.2.2 // indirect
 	github.com/dblohm7/wingoes v0.0.0-20240119213807-a09d6be7affa // indirect
 	github.com/digitalocean/go-smbios v0.0.0-20180907143718-390a4f403a8e // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
@@ -161,7 +162,7 @@ require (
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
 
-replace github.com/sagernet/sing-box => github.com/Darkmen203/rostovvpn-sing-box v0.0.0-20250915165931-d663278d664b
+replace github.com/sagernet/sing-box => github.com/Darkmen203/rostovvpn-sing-box v0.0.0-20250917141731-ff7dd92fb57b
 
 replace github.com/xtls/xray-core => github.com/Darkmen203/xray-core v0.0.0-20250917075812-85bb28f203ae
 
