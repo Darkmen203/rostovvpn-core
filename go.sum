@@ -9,8 +9,8 @@ github.com/Darkmen203/ray2sing v0.0.0-20250917072930-914f270bd17c h1:CDI8mR/GqZj
 github.com/Darkmen203/ray2sing v0.0.0-20250917072930-914f270bd17c/go.mod h1:G+h8L0c+Kfr9HoQYTN/CROQZv8rdMPuCDZ8YBfNpmrc=
 github.com/Darkmen203/rostovvpn-app-demo-extension v0.0.0-20250118135933-997f1513bbfe h1:sGKHfIJfPORD4ZwtpuTzKnsVwBLcRl9wD5o1nP0S6eE=
 github.com/Darkmen203/rostovvpn-app-demo-extension v0.0.0-20250118135933-997f1513bbfe/go.mod h1:oxsNKWxgsVjfdAiWH5rbwkNAfnMRidYxLOAUyJrTRoI=
-github.com/Darkmen203/rostovvpn-sing-box v0.0.0-20250917173402-d507af462f32 h1:4Xb3kMTStiRz/w8WldpPlCPEcunF11cbDNMZeU3x2lQ=
-github.com/Darkmen203/rostovvpn-sing-box v0.0.0-20250917173402-d507af462f32/go.mod h1:kM/4D7+qqHBX/dMPPqn4f+XrPaqXZ3k+M+HWPxiQzfA=
+github.com/Darkmen203/rostovvpn-sing-box v0.0.0-20250917175140-aeadb2137060 h1:ITBcH9lISn0pyJ1BJIxRIqxkL9BKD8qm83yJKjPxLUo=
+github.com/Darkmen203/rostovvpn-sing-box v0.0.0-20250917175140-aeadb2137060/go.mod h1:kM/4D7+qqHBX/dMPPqn4f+XrPaqXZ3k+M+HWPxiQzfA=
 github.com/Darkmen203/warp-plus v0.0.0-20250914174007-d0abc5061784 h1:2TFZ2G06Fyb/7StStpwx1B48Bts+ei2ds6Ov5h2yNYE=
 github.com/Darkmen203/warp-plus v0.0.0-20250914174007-d0abc5061784/go.mod h1:uSRUbr1CcvFrEV69FTvuJFwpzEmwO8N4knb6+Zq3Ys4=
 github.com/DataDog/zstd v1.4.1 h1:3oxKN3wbHibqx897utPC2LTQU4J+IHWWJO+glkAkpFM=

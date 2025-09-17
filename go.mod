@@ -162,7 +162,7 @@ require (
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
 
-replace github.com/sagernet/sing-box => github.com/Darkmen203/rostovvpn-sing-box v0.0.0-20250917173402-d507af462f32
+replace github.com/sagernet/sing-box => github.com/Darkmen203/rostovvpn-sing-box v0.0.0-20250917175140-aeadb2137060
 
 replace github.com/xtls/xray-core => github.com/Darkmen203/xray-core v0.0.0-20250917075812-85bb28f203ae
 
