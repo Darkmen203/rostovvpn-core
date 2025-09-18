@@ -2,17 +2,16 @@ package config
 
 import (
 	"bytes"
-	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Darkmen203/ray2sing/ray2sing"
 	"github.com/sagernet/sing-box/experimental/libbox"
 	"github.com/sagernet/sing-box/option"
-	"github.com/sagernet/sing/common/batch"
 	SJ "github.com/sagernet/sing/common/json"
 	"github.com/xmdhs/clash2singbox/convert"
 	"github.com/xmdhs/clash2singbox/model/clash"
@@ -37,7 +36,7 @@ func ParseConfigContentToOptions(contentstr string, debug bool, configOpt *Rosto
 		return nil, err
 	}
 	var options option.Options
-	err = json.Unmarshal(content, &options)
+	err = SJ.Unmarshal(content, &options)
 	if err != nil {
 		return nil, err
 	}
@@ -102,40 +101,46 @@ func ParseConfigContent(contentstr string, debug bool, configOpt *RostovVPNOptio
 }
 
 func patchConfig(content []byte, name string, configOpt *RostovVPNOptions) ([]byte, error) {
-	options := option.Options{}
-	err := json.Unmarshal(content, &options)
-	if err != nil {
-		return nil, fmt.Errorf("[SingboxParser] unmarshal error: %w", err)
+	// 1) Разбираем как обычную JSON-карту (без реестров/типов)
+	var root any
+	dec := json.NewDecoder(SJ.NewCommentFilter(bytes.NewReader(content)))
+	if err := dec.Decode(&root); err != nil {
+		return nil, fmt.Errorf("[SingboxParser] json decode error: %w", err)
 	}
-	b, _ := batch.New(context.Background(), batch.WithConcurrencyNum[*option.Outbound](2))
-	for _, base := range options.Outbounds {
-		out := base
-		b.Go(base.Tag, func() (*option.Outbound, error) {
-			obj, err := outboundToMap(out)
-			if err != nil {
-				return nil, err
-			}
-			obj, err = patchWarpMap(obj, configOpt, false, nil)
-			if err != nil {
-				return nil, fmt.Errorf("[Warp] patch warp error: %w", err)
-			}
-			updated, err := mapToOutbound(obj)
-			if err != nil {
-				return nil, err
-			}
-			return &updated, nil
-		})
+	obj, ok := root.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("[SingboxParser] root must be JSON object")
 	}
-	if res, err := b.WaitAndGetResult(); err != nil {
-		return nil, err
-	} else {
-		for i, base := range options.Outbounds {
-			options.Outbounds[i] = *res[base.Tag].Value
+	// 2) Достаём outbounds и патчим каждый как map[string]any
+	rawOuts, ok := obj["outbounds"].([]any)
+	if !ok {
+		// может быть отсутствует (тогда ничего патчить не надо)
+		goto DUMP_AND_VALIDATE
+	}
+	for i := range rawOuts {
+		m, ok := rawOuts[i].(map[string]any)
+		if !ok {
+			continue
 		}
+		// 3.1. Удаляем легаси-поле у direct-аута
+		if t, _ := m["type"].(string); strings.EqualFold(t, "direct") {
+			delete(m, "tls_fragment") // поле больше не поддерживается
+			if tag, _ := m["tag"].(string); tag == "direct-fragment" {
+				m["tag"] = "direct" // или вообще выкинуть этот аут
+			}
+		}
+
+		// 3.2. Твой текущий патч (warp и т.д.)
+		patched, err := patchWarpMap(outboundMap(m), configOpt, false, nil)
+		if err != nil {
+			return nil, fmt.Errorf("[Warp] patch warp error: %w", err)
+		}
+		rawOuts[i] = map[string]any(patched)
 	}
+	obj["outbounds"] = rawOuts
 
-	content, _ = json.MarshalIndent(options, "", "  ")
-
+DUMP_AND_VALIDATE:
+	content, _ = json.MarshalIndent(obj, "", "  ")
 	fmt.Printf("%s\n", content)
 	return validateResult(content, name)
 }

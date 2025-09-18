@@ -230,7 +230,6 @@ func setOutbounds(options *option.Options, input *option.Options, opt *RostovVPN
 	baseOutbounds := []option.Outbound{
 		{Type: C.TypeDNS, Tag: OutboundDNSTag},
 		{Type: C.TypeDirect, Tag: OutboundDirectTag},
-		{Type: C.TypeDirect, Tag: OutboundDirectFragmentTag},
 		{Type: C.TypeDirect, Tag: OutboundBypassTag},
 		{Type: C.TypeBlock, Tag: OutboundBlockTag},
 	}
@@ -357,7 +356,7 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 	}
 	dnsOptions.Servers = []option.DNSServerOptions{
 		legacyDNSServer(DNSRemoteTag, opt.RemoteDnsAddress, DNSDirectTag, opt.RemoteDnsDomainStrategy, ""),
-		legacyDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", "", opt.DirectDnsDomainStrategy, OutboundDirectFragmentTag),
+		legacyDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", "", opt.DirectDnsDomainStrategy, OutboundDirectTag),
 		legacyDNSServer(DNSDirectTag, opt.DirectDnsAddress, DNSLocalTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
 		legacyDNSServer(DNSLocalTag, "local", "", 0, OutboundDirectTag),
 		legacyDNSServer(DNSBlockTag, "rcode://success", "", 0, ""),
@@ -534,6 +533,9 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 			Final:               OutboundMainProxyTag,
 			AutoDetectInterface: true,
 			OverrideAndroidVPN:  true,
+			DefaultDomainResolver: &option.DomainResolveOptions{
+				Server: pickDefaultResolver(opt),
+			},
 		}
 	} else {
 		if options.Route.Final == "" {
@@ -541,13 +543,50 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 		}
 		options.Route.AutoDetectInterface = true
 		options.Route.OverrideAndroidVPN = true
+		if options.Route.DefaultDomainResolver == nil {
+			options.Route.DefaultDomainResolver = &option.DomainResolveOptions{Server: pickDefaultResolver(opt)}
+		} else if options.Route.DefaultDomainResolver.Server == "" {
+			options.Route.DefaultDomainResolver.Server = pickDefaultResolver(opt)
+		}
 	}
+
+	// Не задаём DefaultNetworkStrategy, если пользователь не попросил.
+	if ns := toNetworkStrategyPtr(opt.DefaultNetworkStrategy); ns != nil {
+		options.Route.DefaultNetworkStrategy = ns
+	} /* else {
+	    // Если хочешь «автоматическое наследование» из IPv6Mode — раскоммить маппер ниже.
+	    if s, ok := mapDomainToNetworkStrategy(opt.IPv6Mode); ok {
+	        options.Route.DefaultNetworkStrategy = s
+	    }
+	} */
+	 
 	options.Route.Rules = append(options.Route.Rules, routeRules...)
 	options.Route.RuleSet = append(options.Route.RuleSet, rulesets...)
 
 	if opt.EnableDNSRouting {
 		options.DNS.Rules = append(options.DNS.Rules, dnsRules...)
 	}
+}
+
+// ПРИМЕЧАНИЕ: проверь точные токены в твоей версии sing-box.
+// На новых версиях обычно такие:
+// "prefer_ipv4", "prefer_ipv6", "force_ipv4", "force_ipv6".
+func toNetworkStrategyPtr(s string) *option.NetworkStrategy {
+	if s == "" {
+		return nil
+	}
+	if ns, ok := C.StringToNetworkStrategy[s]; ok {
+		v := option.NetworkStrategy(ns)
+		return &v
+	}
+	return nil
+}
+
+func pickDefaultResolver(opt *RostovVPNOptions) string {
+	if opt.DefaultDomainResolver != "" {
+		return opt.DefaultDomainResolver
+	}
+	return DNSRemoteTag
 }
 func legacyDNSServer(tag, address, resolver string, strategy option.DomainStrategy, detour string) option.DNSServerOptions {
 	legacy := &option.LegacyDNSServerOptions{
