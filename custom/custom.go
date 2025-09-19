@@ -57,6 +57,12 @@ func changeRostovvpnOptions(RostovVPNOptionsJson *C.char) (CErr *C.char) {
 	_, err := v2.ChangeRostovVPNSettings(req)
 	return emptyOrErrorC(err)
 }
+func changeHiddifyOptions(RostovVPNOptionsJson *C.char) (CErr *C.char) {
+	_, err := v2.ChangeRostovVPNSettings(&pb.ChangeRostovVPNSettingsRequest{
+		RostovVPNSettingsJson: C.GoString(RostovVPNOptionsJson),
+	})
+	return emptyOrErrorC(err)
+}
 
 //export generateConfig
 func generateConfig(path *C.char) (res *C.char) {

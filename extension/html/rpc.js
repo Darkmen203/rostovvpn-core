@@ -481,7 +481,7 @@ function openConnectionPage() {
         connect();
         $("#connect-button").click(async () => {
             const hsetting_request = new rostovvpn.ChangeRostovVPNSettingsRequest();
-            hsetting_request.setrostovVPNSettingsJson($("#rostovvpn-settings").val());
+            hsetting_request.setRostovVPNSettingsJson($("#rostovvpn-settings").val());
             try{
                 const hres=await rostovvpnClient.ChangeRostovVPNSettings(hsetting_request, {});
             }catch(err){
@@ -686,7 +686,7 @@ const extension = require("./extension_grpc_web_pb.js");
 
 const { renderForm } = require('./formRenderer.js');
 const { listExtensions } = require('./extensionList.js');
-var currentExtensionId = undefined;
+let currentExtensionId;
 function openExtensionPage(extensionId) {
     currentExtensionId = extensionId;
     $("#extension-list-container").hide();
@@ -704,7 +704,7 @@ function connect() {
     stream.on('data', (response) => {
         console.log('Receiving ', response);
         if (response.getExtensionId() === currentExtensionId) {
-            ui = JSON.parse(response.getJsonUi())
+            const ui = JSON.parse(response.getJsonUi())
             if (response.getType() == proto.rostovvpnrpc.ExtensionResponseType.SHOW_DIALOG) {
                 renderForm(ui, "dialog", handleSubmitButtonClick, undefined);
             } else {
@@ -3553,7 +3553,7 @@ const methodDescriptor_Core_ChangeRostovVPNSettings = new grpc.web.MethodDescrip
  * @return {!grpc.web.ClientReadableStream<!proto.rostovvpnrpc.CoreInfoResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.rostovvpnrpc.CoreClient.prototype.ChangeRostovVPNSettings =
+proto.rostovvpnrpc.CoreClient.prototype.changeRostovVPNSettings =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
       '/rostovvpnrpc.Core/ChangeRostovVPNSettings',
@@ -3572,7 +3572,7 @@ proto.rostovvpnrpc.CoreClient.prototype.ChangeRostovVPNSettings =
  * @return {!Promise<!proto.rostovvpnrpc.CoreInfoResponse>}
  *     Promise that resolves to the response
  */
-proto.rostovvpnrpc.CorePromiseClient.prototype.ChangeRostovVPNSettings =
+proto.rostovvpnrpc.CorePromiseClient.prototype.changeRostovVPNSettings =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
       '/rostovvpnrpc.Core/ChangeRostovVPNSettings',
@@ -8069,7 +8069,7 @@ proto.rostovvpnrpc.ChangeRostovVPNSettingsRequest.prototype.toObject = function(
  */
 proto.rostovvpnrpc.ChangeRostovVPNSettingsRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-rostovVPNSettingsJson: jspb.Message.getFieldWithDefault(msg, 1, "")
+rostovvpnSettingsJson: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -8108,7 +8108,7 @@ proto.rostovvpnrpc.ChangeRostovVPNSettingsRequest.deserializeBinaryFromReader = 
     switch (field) {
     case 1:
       var value = /** @type {string} */ (reader.readString());
-      msg.setrostovVPNSettingsJson(value);
+      msg.setRostovvpnSettingsJson(value);
       break;
     default:
       reader.skipField();
@@ -8139,7 +8139,7 @@ proto.rostovvpnrpc.ChangeRostovVPNSettingsRequest.prototype.serializeBinary = fu
  */
 proto.rostovvpnrpc.ChangeRostovVPNSettingsRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getrostovVPNSettingsJson();
+  f = message.getRostovvpnSettingsJson();
   if (f.length > 0) {
     writer.writeString(
       1,
@@ -8153,7 +8153,7 @@ proto.rostovvpnrpc.ChangeRostovVPNSettingsRequest.serializeBinaryToWriter = func
  * optional string rostovvpn_settings_json = 1;
  * @return {string}
  */
-proto.rostovvpnrpc.ChangeRostovVPNSettingsRequest.prototype.getrostovVPNSettingsJson = function() {
+proto.rostovvpnrpc.ChangeRostovVPNSettingsRequest.prototype.getRostovvpnSettingsJson = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
@@ -8162,7 +8162,7 @@ proto.rostovvpnrpc.ChangeRostovVPNSettingsRequest.prototype.getrostovVPNSettings
  * @param {string} value
  * @return {!proto.rostovvpnrpc.ChangeRostovVPNSettingsRequest} returns this
  */
-proto.rostovvpnrpc.ChangeRostovVPNSettingsRequest.prototype.setrostovVPNSettingsJson = function(value) {
+proto.rostovvpnrpc.ChangeRostovVPNSettingsRequest.prototype.setRostovvpnSettingsJson = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 

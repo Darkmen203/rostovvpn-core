@@ -205,7 +205,7 @@ func (s *CoreService) ChangeRostovVPNSettings(ctx context.Context, in *pb.Change
 
 func ChangeRostovVPNSettings(in *pb.ChangeRostovVPNSettingsRequest) (*pb.CoreInfoResponse, error) {
 	RostovVPNOptions = config.DefaultRostovVPNOptions()
-	err := json.Unmarshal([]byte(in.GetrostovVPNSettingsJson()), RostovVPNOptions)
+	err := json.Unmarshal([]byte(in.GetRostovvpnSettingsJson()), RostovVPNOptions)
 	if err != nil {
 		return nil, err
 	}
