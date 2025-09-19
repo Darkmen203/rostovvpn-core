@@ -45,6 +45,58 @@ const (
 
 var OutboundMainProxyTag = OutboundSelectTag
 
+type emptyJSON struct{}
+
+func (emptyJSON) MarshalJSON() ([]byte, error) { return []byte("{}"), nil }
+
+func normalizeDNSAddress(addr string) string {
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		return ""
+	}
+
+	low := strings.ToLower(addr)
+
+	// спец-адреса пропускаем
+	if low == "local" || low == "system" || low == "fakeip" || strings.HasPrefix(low, "rcode://") {
+		return addr
+	}
+
+	// если схемы нет — считаем, что это udp
+	if !strings.HasPrefix(low, "udp://") &&
+		!strings.HasPrefix(low, "tcp://") &&
+		!strings.HasPrefix(low, "tls://") &&
+		!strings.HasPrefix(low, "https://") &&
+		!strings.HasPrefix(low, "h3://") &&
+		!strings.HasPrefix(low, "quic://") {
+		addr = "udp://" + addr
+		low = "udp://" + low
+	}
+
+	u, err := url.Parse(addr)
+	if err != nil {
+		return addr
+	}
+	host := u.Host
+	hasPort := strings.LastIndex(host, ":") > strings.LastIndex(host, "]") // IPv6 с []
+	if !hasPort {
+		switch {
+		case strings.HasPrefix(low, "udp://"), strings.HasPrefix(low, "tcp://"):
+			u.Host = host + ":53"
+		case strings.HasPrefix(low, "tls://"):
+			u.Host = host + ":853"
+		default: // https/h3/quic
+			u.Host = host + ":443"
+		}
+	}
+
+	// ВАЖНО: для udp/tcp в legacy многие сборки хотят «host:port» без схемы.
+	if strings.HasPrefix(low, "udp://") || strings.HasPrefix(low, "tcp://") {
+		return u.Host
+	}
+	return u.String()
+}
+
 func BuildConfigJson(configOpt RostovVPNOptions, input option.Options) (string, error) {
 	options, err := BuildConfig(configOpt, input)
 	if err != nil {
@@ -72,6 +124,7 @@ func BuildConfig(opt RostovVPNOptions, input option.Options) (*option.Options, e
 		options.Route = input.Route
 	}
 
+	fmt.Print("[BuildConfig] !!! input= \n", input, ",\n  !!! [BuildConfig] ")
 	setClashAPI(&options, &opt)
 	setLog(&options, &opt)
 	setInbound(&options, &opt)
@@ -164,36 +217,39 @@ func setOutbounds(options *option.Options, input *option.Options, opt *RostovVPN
 		outbounds = append(outbounds, warpStruct)
 	}
 
-	for _, baseOutbound := range input.Outbounds {
-		updated, serverDomain, err := patchOutbound(baseOutbound, *opt, staticIPs)
-		if err != nil {
-			return err
+	// --- главный цикл по входным аутбаундам БЕЗ map/struct-раунда ---
+	for _, base := range input.Outbounds {
+		upd, serverDomain, err := patchOutboundSafe(base, *opt, staticIPs)
+		if err != nil || upd == nil {
+			upd = &base
 		}
+		// Страховка: не допускаем Options=nil у протокольных аутбаундов
+		if upd.Options == nil && base.Options != nil {
+			upd.Options = base.Options
+		}
+
 		if serverDomain != "" {
 			directDNSDomains[serverDomain] = true
 		}
-		obj, err := outboundToMap(*updated)
-		if err != nil {
-			return err
-		}
-		switch strings.ToLower(obj.string("type")) {
-		case strings.ToLower(C.TypeDirect), strings.ToLower(C.TypeBlock), strings.ToLower(C.TypeDNS), strings.ToLower(C.TypeSelector), strings.ToLower(C.TypeURLTest):
+
+		switch strings.ToLower(upd.Type) {
+		case strings.ToLower(C.TypeDirect),
+			strings.ToLower(C.TypeBlock),
+			strings.ToLower(C.TypeDNS),
+			strings.ToLower(C.TypeSelector),
+			strings.ToLower(C.TypeURLTest):
 			continue
 		}
-		tag := obj.string("tag")
-		if tag == "" {
-			tag = fmt.Sprintf("outbound-%d", len(tags))
-			obj["tag"] = tag
+
+		if upd.Tag == "" {
+			upd.Tag = fmt.Sprintf("outbound-%d", len(tags))
 		}
-		if !strings.Contains(strings.ToLower(tag), "hide") {
-			tags = append(tags, tag)
+		if !strings.Contains(strings.ToLower(upd.Tag), "hide") {
+			tags = append(tags, upd.Tag)
 		}
-		obj = patchRostovVPNWarpFromConfigMap(obj, *opt)
-		updatedOutbound, err := mapToOutbound(obj)
-		if err != nil {
-			return err
-		}
-		outbounds = append(outbounds, updatedOutbound)
+
+		// ВАЖНО: НЕ делаем mapPatch — сохраняем типизированные Options
+		outbounds = append(outbounds, *upd)
 	}
 
 	urlTest := option.Outbound{
@@ -227,11 +283,12 @@ func setOutbounds(options *option.Options, input *option.Options, opt *RostovVPN
 
 	outbounds = append([]option.Outbound{selector, urlTest}, outbounds...)
 
+	// Базовые аутбаунды — без несуществующих Options (nil это нормально)
 	baseOutbounds := []option.Outbound{
-		{Type: C.TypeDNS, Tag: OutboundDNSTag},
-		{Type: C.TypeDirect, Tag: OutboundDirectTag},
-		{Type: C.TypeDirect, Tag: OutboundBypassTag},
-		{Type: C.TypeBlock, Tag: OutboundBlockTag},
+		{Type: C.TypeDNS, Tag: OutboundDNSTag, Options: emptyJSON{}},
+		{Type: C.TypeDirect, Tag: OutboundDirectTag, Options: emptyJSON{}},
+		{Type: C.TypeDirect, Tag: OutboundBypassTag, Options: emptyJSON{}},
+		{Type: C.TypeBlock, Tag: OutboundBlockTag, Options: emptyJSON{}},
 	}
 
 	options.Outbounds = append(outbounds, baseOutbounds...)
@@ -240,7 +297,31 @@ func setOutbounds(options *option.Options, input *option.Options, opt *RostovVPN
 	applyStaticIPHosts(options, staticIPs)
 	return nil
 }
+func patchOutboundSafe(base option.Outbound, opt RostovVPNOptions, staticIPs map[string][]string) (*option.Outbound, string, error) {
+	o := base
+	var serverDomain string
+
+	switch strings.ToLower(base.Type) {
+	case strings.ToLower(C.TypeVLESS):
+		if v, ok := base.Options.(*option.VLESSOutboundOptions); ok && v != nil {
+			if v.Server != "" && net.ParseIP(v.Server) == nil {
+				serverDomain = v.Server
+			}
+			// тут при желании можно что-то чуть-чуть «доподкрутить», не меняя типы
+			// например:
+			// if v.TLS != nil && v.TLS.UTLS != nil && v.TLS.UTLS.Enabled && v.TLS.UTLS.Fingerprint == "" {
+			//     v.TLS.UTLS.Fingerprint = "random"
+			// }
+		}
+		// при необходимости добавите vmess/trojan/hysteria и т.д. по аналогии
+	}
+
+	return &o, serverDomain, nil
+}
 func setClashAPI(options *option.Options, opt *RostovVPNOptions) {
+	fmt.Print("[setClashAPI] !!! [readConfigContent ] opt= \n", opt, ",\n  !!! [setClashAPI] ")
+	fmt.Print("[setClashAPI] !!! [readConfigContent ] options= \n", options, ",\n  !!! [setClashAPI] ")
+
 	if opt.EnableClashApi {
 		if opt.ClashApiSecret == "" {
 			opt.ClashApiSecret = generateRandomString(16)
@@ -355,9 +436,16 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 		IndependentCache: opt.IndependentDNSCache,
 	}
 	dnsOptions.Servers = []option.DNSServerOptions{
-		legacyDNSServer(DNSRemoteTag, opt.RemoteDnsAddress, DNSDirectTag, opt.RemoteDnsDomainStrategy, ""),
+		// remote (udp://8.8.8.8 из shared_prefs -> "8.8.8.8")
+		legacyDNSServer(DNSRemoteTag, normalizeDNSAddress(opt.RemoteDnsAddress), DNSDirectTag, opt.RemoteDnsDomainStrategy, ""),
+
+		// DoH с «анти-ДПИ» (оставляем legacy https + детур на direct)
 		legacyDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", "", opt.DirectDnsDomainStrategy, OutboundDirectTag),
-		legacyDNSServer(DNSDirectTag, opt.DirectDnsAddress, DNSLocalTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
+
+		// direct (udp)
+		legacyDNSServer(DNSDirectTag, normalizeDNSAddress(opt.DirectDnsAddress), DNSLocalTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
+
+		// local/rcode — как было
 		legacyDNSServer(DNSLocalTag, "local", "", 0, OutboundDirectTag),
 		legacyDNSServer(DNSBlockTag, "rcode://success", "", 0, ""),
 	}
@@ -419,6 +507,22 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 	if opt.BypassLAN {
 		routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{IPIsPrivate: true}, OutboundBypassTag))
 	}
+
+	// A) Любой трафик к DoH-хосту — напрямую (direct)
+	routeRules = append(routeRules, newRouteRule(
+		option.RawDefaultRule{Domain: []string{"sky.rethinkdns.com"}},
+		OutboundDirectTag,
+	))
+
+	// B) Сами DNS-запросы на этот домен — через наш "dns-trick-direct"
+	dnsRules = append(dnsRules, newDNSRouteRule(
+		option.DefaultDNSRule{
+			RawDefaultDNSRule: option.RawDefaultDNSRule{
+				Domain: []string{"sky.rethinkdns.com"},
+			},
+		},
+		DNSTricksDirectTag, // tag сервера из setDns()
+	))
 
 	for _, rule := range opt.Rules {
 		routeRule := rule.MakeRule()
@@ -559,7 +663,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 	        options.Route.DefaultNetworkStrategy = s
 	    }
 	} */
-	 
+
 	options.Route.Rules = append(options.Route.Rules, routeRules...)
 	options.Route.RuleSet = append(options.Route.RuleSet, rulesets...)
 

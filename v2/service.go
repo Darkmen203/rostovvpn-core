@@ -2,6 +2,7 @@ package v2
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"runtime"
@@ -31,6 +32,7 @@ func InitRostovVPNService() error {
 
 func Setup(basePath string, workingPath string, tempPath string, statusPort int64, debug bool) error {
 	statusPropagationPort = statusPort
+	fmt.Print("[Setup in service.go] !!! ", statusPropagationPort, " !!! [Setup in service.go]")
 	if err := libbox.Setup(&libbox.SetupOptions{
 		BasePath:        basePath,
 		WorkingPath:     workingPath,

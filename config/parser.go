@@ -44,6 +44,8 @@ func ParseConfigContentToOptions(contentstr string, debug bool, configOpt *Rosto
 }
 
 func ParseConfigContent(contentstr string, debug bool, configOpt *RostovVPNOptions, fullConfig bool) ([]byte, error) {
+	fmt.Print("\n[config.ParseConfigContent] !!! configOpt= \n", configOpt, ",\n  !!! [config.ParseConfigContent] \n")
+	
 	if configOpt == nil {
 		configOpt = DefaultRostovVPNOptions()
 	}

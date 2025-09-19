@@ -50,23 +50,25 @@ func RunStandalone(rostovvpnSettingPath string, configPath string, defaultConfig
 }
 
 type ConfigResult struct {
-	Config                  string
-	RefreshInterval         int
+	Config                    string
+	RefreshInterval           int
 	RostovvpnRostovVPNOptions *config.RostovVPNOptions
 }
 
 func readAndBuildConfig(rostovvpnSettingPath string, configPath string, defaultConfig *config.RostovVPNOptions) (ConfigResult, error) {
 	var result ConfigResult
 
+	fmt.Print("[readAndBuildConfig] !!! ", rostovvpnSettingPath, " !!! [readAndBuildConfig]")
 	result, err := readConfigContent(configPath)
+	// fmt.Print("[readAndBuildConfig] !!! [readConfigContent ] result= ", result)
 	if err != nil {
 		return result, err
 	}
 
+	// База — дефолты; сверху накроем defaultConfig (если есть) и shared_prefs (если путь задан)
 	rostovvpnconfig := config.DefaultRostovVPNOptions()
-
 	if defaultConfig != nil {
-		rostovvpnconfig = defaultConfig
+		*rostovvpnconfig = *defaultConfig
 	}
 
 	if rostovvpnSettingPath != "" {
@@ -77,7 +79,9 @@ func readAndBuildConfig(rostovvpnSettingPath string, configPath string, defaultC
 	}
 
 	result.RostovvpnRostovVPNOptions = rostovvpnconfig
-	result.Config, err = buildConfig(result.Config, *result.RostovvpnRostovVPNOptions)
+	result.Config, err = buildConfig(result.Config, *rostovvpnconfig)
+	fmt.Print("[readAndBuildConfig] !!! [readConfigContent ] result= \n", result, ",\n  !!! [readAndBuildConfig] ")
+
 	if err != nil {
 		return result, err
 	}
@@ -158,7 +162,9 @@ func buildConfig(configContent string, options config.RostovVPNOptions) (string,
 	if err != nil {
 		return "", fmt.Errorf("failed to parse config content: %w", err)
 	}
+	
 	singconfigs, err := readConfigBytes([]byte(parsedContent))
+	// fmt.Print("\n[config.buildConfig] !!! singconfigs= \n", singconfigs, ",\n  !!! [config.buildConfig] \n")
 	if err != nil {
 		return "", err
 	}
@@ -178,11 +184,33 @@ func buildConfig(configContent string, options config.RostovVPNOptions) (string,
 
 	fmt.Printf("Open http://localhost:6756/ui/?secret=%s in your browser\n", finalconfig.Experimental.ClashAPI.Secret)
 
-	if err := Setup("./", "./", "./tmp", 0, false); err != nil {
+	if err := Setup("./", "./", "./tmp", 0, true); err != nil {
 		return "", fmt.Errorf("failed to set up global configuration: %w", err)
 	}
 
 	configStr, err := config.ToJson(*finalconfig)
+
+	// --- DEBUG: показать DNS-сервера и кусок финального конфига ---
+	fmt.Println("---- FINAL DNS servers ----")
+	var inspect struct {
+		DNS struct {
+			Servers []map[string]any `json:"servers"`
+		} `json:"dns"`
+	}
+	_ = json.Unmarshal([]byte(configStr), &inspect)
+	for i, s := range inspect.DNS.Servers {
+		fmt.Printf("[%d] tag=%v type=%v address=%v detour=%v resolver=%v\n",
+			i, s["tag"], s["type"], s["address"], s["detour"], s["address_resolver"])
+	}
+	fmt.Println("---- FINAL (first 2KB) ----")
+	if len(configStr) > 2048 {
+		fmt.Println(configStr[:2048])
+	} else {
+		fmt.Println(configStr)
+	}
+	fmt.Println("---- /FINAL ----")
+	// --- /DEBUG ---
+
 	if err != nil {
 		return "", fmt.Errorf("failed to convert config to JSON: %w", err)
 	}
@@ -225,26 +253,97 @@ func readConfigBytes(content []byte) (*option.Options, error) {
 }
 
 func ReadRostovVPNOptionsAt(path string) (*config.RostovVPNOptions, error) {
-	content, err := os.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		// Нет файла? — вернём дефолты, это не критично для standalone.
+		return config.DefaultRostovVPNOptions(), nil
 	}
-	var options config.RostovVPNOptions
-	err = json.Unmarshal(content, &options)
-	if err != nil {
-		return nil, err
-	}
-	if options.Warp.WireguardConfigStr != "" {
-		err := json.Unmarshal([]byte(options.Warp.WireguardConfigStr), &options.Warp.WireguardConfig)
-		if err != nil {
-			return nil, err
+
+	// 1) Попытка: это уже структурный RostovVPNOptions?
+	{
+		var opt config.RostovVPNOptions
+		if err := json.Unmarshal(data, &opt); err == nil {
+			// Эвристика: если хоть что-то «живое» проставлено — считаем валидным.
+			if opt.LogLevel != "" || opt.InboundOptions.MixedPort != 0 || opt.Region != "" ||
+				opt.DNSOptions.RemoteDnsAddress != "" || opt.RouteOptions.BypassLAN {
+				// Разобрать возможные вложенные warp-конфиги-строки
+				if opt.Warp.WireguardConfigStr != "" {
+					_ = json.Unmarshal([]byte(opt.Warp.WireguardConfigStr), &opt.Warp.WireguardConfig)
+				}
+				if opt.Warp2.WireguardConfigStr != "" {
+					_ = json.Unmarshal([]byte(opt.Warp2.WireguardConfigStr), &opt.Warp2.WireguardConfig)
+				}
+				return &opt, nil
+			}
 		}
 	}
-	if options.Warp2.WireguardConfigStr != "" {
-		err := json.Unmarshal([]byte(options.Warp2.WireguardConfigStr), &options.Warp2.WireguardConfig)
-		if err != nil {
-			return nil, err
+
+	// 2) Иначе это Flutter shared_prefs: map[string]any с ключами "flutter.*"
+	raw := map[string]any{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		// Кривой JSON — вернём дефолты, чтобы не падать.
+		fmt.Print("[ReadRostovVPNOptionsAt] !!! [Кривой JSON — вернём дефолты, чтобы не падать.] err= \n", err, ",\n  !!! [ReadRostovVPNOptionsAt] ")
+
+		return config.DefaultRostovVPNOptions(), nil
+	}
+	opt := config.DefaultRostovVPNOptions()
+	applyFlutterPrefs(raw, opt)
+	return opt, nil
+}
+
+// ---- helpers ----
+func applyFlutterPrefs(raw map[string]any, opt *config.RostovVPNOptions) {
+	// DNS
+	if v := str(raw, "flutter.remote-dns-address"); v != "" {
+		opt.RemoteDnsAddress = v
+	}
+	if v := str(raw, "flutter.direct-dns-address"); v != "" {
+		opt.DirectDnsAddress = v
+	}
+	// LAN/Region
+	if v, ok := boolean(raw, "flutter.bypass-lan"); ok {
+		opt.BypassLAN = v
+	}
+	if v := str(raw, "flutter.region"); v != "" {
+		opt.Region = strings.ToLower(v)
+	}
+	// Системный прокси — включает mixed-in SetSystemProxy
+	if v := str(raw, "flutter.service-mode"); strings.EqualFold(v, "system-proxy") {
+		opt.SetSystemProxy = true
+	}
+	// Лог-левел (если вдруг передаёте из аппки)
+	if v := str(raw, "flutter.log-level"); v != "" {
+		opt.LogLevel = v
+	}
+	// Можно добавить маппинги под будущие ключи:
+	//   flutter.enable-fake-dns  -> opt.EnableFakeDNS
+	//   flutter.default-domain-resolver -> opt.DefaultDomainResolver
+	//   flutter.default-network-strategy -> opt.DefaultNetworkStrategy
+}
+
+func str(m map[string]any, key string) string {
+	if v, ok := m[key]; ok {
+		switch t := v.(type) {
+		case string:
+			return strings.TrimSpace(t)
 		}
 	}
-	return &options, nil
+	return ""
+}
+func boolean(m map[string]any, key string) (bool, bool) {
+	if v, ok := m[key]; ok {
+		switch t := v.(type) {
+		case bool:
+			return t, true
+		case string:
+			// иногда Flutter кладёт "true"/"false" строками
+			if strings.EqualFold(t, "true") {
+				return true, true
+			}
+			if strings.EqualFold(t, "false") {
+				return false, true
+			}
+		}
+	}
+	return false, false
 }
