@@ -2,7 +2,7 @@ package v2
 
 import (
 	"encoding/json"
-	"fmt"
+	// "context"
 	"io"
 	"os"
 	"runtime"
@@ -11,11 +11,17 @@ import (
 
 	"github.com/Darkmen203/rostovvpn-core/v2/service_manager"
 
+	// "github.com/sagernet/sing-box/common/urltest"
 	"github.com/sagernet/sing-box/experimental/libbox"
 	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing-box/option"
 	E "github.com/sagernet/sing/common/exceptions"
 	singjson "github.com/sagernet/sing/common/json"
+	// "github.com/sagernet/sing/service/filemanager"
+	// B "github.com/sagernet/sing-box"
+	// "github.com/sagernet/sing/service"
+
+
 )
 
 var (
@@ -31,21 +37,19 @@ func InitRostovVPNService() error {
 }
 
 func Setup(basePath string, workingPath string, tempPath string, statusPort int64, debug bool) error {
-	statusPropagationPort = statusPort
-	fmt.Print("[Setup in service.go] !!! ", statusPropagationPort, " !!! [Setup in service.go]")
+	statusPropagationPort = int64(statusPort)
+	tcpConn := runtime.GOOS == "windows" // TODO add TVOS
 	if err := libbox.Setup(&libbox.SetupOptions{
 		BasePath:        basePath,
 		WorkingPath:     workingPath,
 		TempPath:        tempPath,
 		FixAndroidStack: runtime.GOOS == "android",
+		IsTVOS: tcpConn,
 	}); err != nil {
 		return E.Cause(err, "setup libbox")
 	}
-
 	sWorkingPath = workingPath
-	if err := os.Chdir(sWorkingPath); err != nil {
-		return err
-	}
+	os.Chdir(sWorkingPath)
 	sTempPath = tempPath
 	sUserID = os.Getuid()
 	sGroupID = os.Getgid()
@@ -54,11 +58,17 @@ func Setup(basePath string, workingPath string, tempPath string, statusPort int6
 	if !debug {
 		defaultWriter = io.Discard
 	}
-	factory, err := log.New(log.Options{
-		DefaultWriter: defaultWriter,
-		BaseTime:      time.Now(),
-		Observable:    true,
-	})
+	factory, err := log.New(
+		log.Options{
+			DefaultWriter: defaultWriter,
+			BaseTime:      time.Now(),
+			Observable:    true,
+			// Options: option.LogOptions{
+			// 	Disabled: false,
+			// 	Level:    "trace",
+			// 	Output:   "stdout",
+			// },
+		})
 	coreLogFactory = factory
 
 	if err != nil {
@@ -80,6 +90,31 @@ func NewService(options option.Options) (*libbox.BoxService, error) {
 	runtimeDebug.FreeOSMemory()
 	return service, nil
 }
+
+// func NewService(options option.Options) (*libbox.BoxService, error) {
+// 	runtimeDebug.FreeOSMemory()
+// 	ctx, cancel := context.WithCancel(context.Background())
+// 	ctx = filemanager.WithDefault(ctx, sWorkingPath, sTempPath, sUserID, sGroupID)
+// 	urlTestHistoryStorage := urltest.NewHistoryStorage()
+// 	ctx = service.ContextWithPtr(ctx, urlTestHistoryStorage)
+// 	instance, err := B.New(B.Options{
+// 		Context: ctx,
+// 		Options: options,
+// 	})
+// 	if err != nil {
+// 		cancel()
+// 		return nil, E.Cause(err, "create service")
+// 	}
+// 	runtimeDebug.FreeOSMemory()
+// 	service := libbox.NewBoxService(
+// 		ctx,
+// 		cancel,
+// 		instance,
+// 		service.FromContext[pause.Manager](ctx),
+// 		urlTestHistoryStorage,
+// 	)
+// 	return &service, nil
+// }
 
 func readOptions(configContent string) (option.Options, error) {
 	ctx := libbox.BaseContext(nil)
