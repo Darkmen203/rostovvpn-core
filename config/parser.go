@@ -64,9 +64,15 @@ func ParseConfigContent(contentstr string, debug bool, configOpt *RostovVPNOptio
 					jsonObj = tmpJsonObj
 				} else {
 					jsonObj["outbounds"] = tmpJsonObj["outbounds"]
+					if exp, ok := tmpJsonObj["experimental"]; ok {
+						jsonObj["experimental"] = exp
+					}
+					if lg, ok := tmpJsonObj["log"]; ok {
+						jsonObj["log"] = lg
+					}
 				}
 			}
-		} else if jsonArray, ok := tmpJsonResult.([]map[string]interface{}); ok {
+		} else if jsonArray, ok := tmpJsonResult.([]interface{}); ok {
 			jsonObj["outbounds"] = jsonArray
 		} else {
 			return nil, fmt.Errorf("[SingboxParser] Incorrect Json Format")

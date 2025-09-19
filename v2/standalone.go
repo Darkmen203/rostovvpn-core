@@ -1,9 +1,12 @@
 package v2
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -58,9 +61,10 @@ type ConfigResult struct {
 func readAndBuildConfig(rostovvpnSettingPath string, configPath string, defaultConfig *config.RostovVPNOptions) (ConfigResult, error) {
 	var result ConfigResult
 
-	fmt.Print("[readAndBuildConfig] !!! ", rostovvpnSettingPath, " !!! [readAndBuildConfig]")
+	fmt.Println("[standalone.readAndBuildConfig] !!! ", rostovvpnSettingPath, " !!! [standalone.readAndBuildConfig]")
+	fmt.Println("[standalone.readAndBuildConfig] !!! defaultConfig= \n", defaultConfig, "\n !!! [standalone.readAndBuildConfig]")
 	result, err := readConfigContent(configPath)
-	// fmt.Print("[readAndBuildConfig] !!! [readConfigContent ] result= ", result)
+	fmt.Println("[readAndBuildConfig] !!! [readConfigContent ] result= \n", result, "\n !!! [readAndBuildConfig] !!! [readConfigContent ] ")
 	if err != nil {
 		return result, err
 	}
@@ -70,6 +74,7 @@ func readAndBuildConfig(rostovvpnSettingPath string, configPath string, defaultC
 	if defaultConfig != nil {
 		*rostovvpnconfig = *defaultConfig
 	}
+	fmt.Println("[readAndBuildConfig] !!! [DefaultRostovVPNOptions ] rostovvpnconfig= \n", rostovvpnconfig, "\n !!! [readAndBuildConfig] !!! [DefaultRostovVPNOptions ] ")
 
 	if rostovvpnSettingPath != "" {
 		rostovvpnconfig, err = ReadRostovVPNOptionsAt(rostovvpnSettingPath)
@@ -79,8 +84,8 @@ func readAndBuildConfig(rostovvpnSettingPath string, configPath string, defaultC
 	}
 
 	result.RostovvpnRostovVPNOptions = rostovvpnconfig
+	fmt.Println("[readAndBuildConfig] !!! [before result.Config ] result= \n", result.Config, ",\n  !!! [readAndBuildConfig] ")
 	result.Config, err = buildConfig(result.Config, *rostovvpnconfig)
-	fmt.Print("[readAndBuildConfig] !!! [readConfigContent ] result= \n", result, ",\n  !!! [readAndBuildConfig] ")
 
 	if err != nil {
 		return result, err
@@ -123,6 +128,7 @@ func readConfigContent(configPath string) (ConfigResult, error) {
 			return ConfigResult{}, fmt.Errorf("failed to read config file: %w", err)
 		}
 		content = string(data)
+		fmt.Println("[standalone.readConfigContent] !!! content= \n", content, "\n !!! [standalone.readConfigContent]")
 	}
 
 	return ConfigResult{
@@ -158,11 +164,13 @@ func extractRefreshInterval(header http.Header, bodyStr string) (int, error) {
 }
 
 func buildConfig(configContent string, options config.RostovVPNOptions) (string, error) {
+
 	parsedContent, err := config.ParseConfigContent(configContent, true, &options, false)
+	fmt.Println("[standalone.buildConfig] !!! [ParseConfigContent] parsedContent= \n", parsedContent, "\n !!! [standalone.buildConfig]")
 	if err != nil {
 		return "", fmt.Errorf("failed to parse config content: %w", err)
 	}
-	
+
 	singconfigs, err := readConfigBytes([]byte(parsedContent))
 	// fmt.Print("\n[config.buildConfig] !!! singconfigs= \n", singconfigs, ",\n  !!! [config.buildConfig] \n")
 	if err != nil {
@@ -174,15 +182,42 @@ func buildConfig(configContent string, options config.RostovVPNOptions) (string,
 		return "", fmt.Errorf("failed to build config: %w", err)
 	}
 
-	finalconfig.Log.Output = ""
-	finalconfig.Experimental.ClashAPI.ExternalUI = "webui"
-	if options.AllowConnectionFromLAN {
-		finalconfig.Experimental.ClashAPI.ExternalController = "0.0.0.0:6756"
-	} else {
-		finalconfig.Experimental.ClashAPI.ExternalController = "127.0.0.1:6756"
+	// Не затираем лог-файл, если он задан
+	if options.LogFile == "" {
+		finalconfig.Log.Output = ""
 	}
 
-	fmt.Printf("Open http://localhost:6756/ui/?secret=%s in your browser\n", finalconfig.Experimental.ClashAPI.Secret)
+	// Уважать уже заданный experimental.clash_api; подставлять дефолты только если пусто
+	if finalconfig.Experimental != nil && finalconfig.Experimental.ClashAPI != nil {
+		ca := finalconfig.Experimental.ClashAPI
+		if ca.ExternalUI == "" {
+			ca.ExternalUI = "webui"
+		}
+		if ca.ExternalController == "" {
+			host := "127.0.0.1"
+			if options.AllowConnectionFromLAN {
+				host = "0.0.0.0"
+			}
+			port := options.ClashApiPort
+			if port == 0 {
+				port = 16756
+			}
+			ca.ExternalController = fmt.Sprintf("%s:%d", host, port)
+		}
+		if ca.Secret == "" {
+			fmt.Print("[standalone.buildConfig] !!!", options.ClashApiSecret," !!! [standalone.buildConfig]")
+			if options.ClashApiSecret == "" {
+				options.ClashApiSecret = generateRandomString(16) // или твоя функция
+			}
+			ca.Secret = options.ClashApiSecret
+		}
+		// Печатаем URL без хардкода 6756
+		host, port, _ := net.SplitHostPort(ca.ExternalController)
+		if host == "" {
+			host = "127.0.0.1"
+		}
+		fmt.Printf("Open http://%s:%s/ui/?secret=%s in your browser\n", host, port, ca.Secret)
+	}
 
 	if err := Setup("./", "./", "./tmp", 0, true); err != nil {
 		return "", fmt.Errorf("failed to set up global configuration: %w", err)
@@ -216,6 +251,24 @@ func buildConfig(configContent string, options config.RostovVPNOptions) (string,
 	}
 
 	return configStr, nil
+}
+
+func generateRandomString(length int) string {
+	// Determine the number of bytes needed
+	bytesNeeded := (length*6 + 7) / 8
+
+	// Generate random bytes
+	randomBytes := make([]byte, bytesNeeded)
+	_, err := rand.Read(randomBytes)
+	if err != nil {
+		return "rostovvpn"
+	}
+
+	// Encode random bytes to base64
+	randomString := base64.URLEncoding.EncodeToString(randomBytes)
+
+	// Trim padding characters and return the string
+	return randomString[:length]
 }
 
 func updateConfigInterval(current ConfigResult, rostovvpnSettingPath string, configPath string) {

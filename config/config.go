@@ -122,6 +122,12 @@ func BuildConfig(opt RostovVPNOptions, input option.Options) (*option.Options, e
 		options.Inbounds = input.Inbounds
 		options.DNS = input.DNS
 		options.Route = input.Route
+		options.Experimental = input.Experimental
+	} else {
+		// даже если не full, всё равно уважим experimental из входного файла
+		if input.Experimental != nil {
+			options.Experimental = input.Experimental
+		}
 	}
 
 	fmt.Print("[BuildConfig] !!! input= \n", input, ",\n  !!! [BuildConfig] ")
@@ -322,22 +328,49 @@ func setClashAPI(options *option.Options, opt *RostovVPNOptions) {
 	fmt.Print("[setClashAPI] !!! [readConfigContent ] opt= \n", opt, ",\n  !!! [setClashAPI] ")
 	fmt.Print("[setClashAPI] !!! [readConfigContent ] options= \n", options, ",\n  !!! [setClashAPI] ")
 
-	if opt.EnableClashApi {
+	if !opt.EnableClashApi {
+		return
+	}
+	if options.Experimental == nil {
+		options.Experimental = &option.ExperimentalOptions{}
+	}
+	if options.Experimental.ClashAPI == nil {
+		options.Experimental.ClashAPI = &option.ClashAPIOptions{}
+	}
+
+	if options.Experimental.ClashAPI.ExternalController == "" {
+		options.Experimental.ClashAPI.ExternalController = fmt.Sprintf("127.0.0.1:%d", opt.ClashApiPort)
+	}
+
+	// secret: если уже задан в файле — не трогаем; иначе берём из опций; иначе сгенерим
+	if options.Experimental.ClashAPI.Secret == "" {
+		fmt.Print("[config.setClashAPI] !!!", options.Experimental.ClashAPI.Secret, " !!! [config.setClashAPI]")
+		fmt.Print("[config.setClashAPI] !!!", opt.ClashApiSecret, " !!! [config.setClashAPI]")
+		fmt.Print("[config.setClashAPI] !!!", options, " !!! [config.setClashAPI]")
+		fmt.Print("[config.setClashAPI] !!!", opt, " !!! [config.setClashAPI]")
+
 		if opt.ClashApiSecret == "" {
 			opt.ClashApiSecret = generateRandomString(16)
 		}
-		options.Experimental = &option.ExperimentalOptions{
-			ClashAPI: &option.ClashAPIOptions{
-				ExternalController: fmt.Sprintf("%s:%d", "127.0.0.1", opt.ClashApiPort),
-				Secret:             opt.ClashApiSecret,
-			},
-
-			CacheFile: &option.CacheFileOptions{
-				Enabled: true,
-				Path:    "clash.db",
-			},
-		}
+		options.Experimental.ClashAPI.Secret = opt.ClashApiSecret
 	}
+
+	// external_ui добавляем только если ещё нет
+	if options.Experimental.ClashAPI.ExternalUI == "" {
+		options.Experimental.ClashAPI.ExternalUI = "webui"
+	}
+
+	options.Experimental.CacheFile = &option.CacheFileOptions{
+		Enabled: true,
+		Path:    "clash.db",
+	}
+
+	// ПРАВИЛЬНО печатаем URL без хардкода 6756
+	host, port, _ := net.SplitHostPort(options.Experimental.ClashAPI.ExternalController)
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	fmt.Printf("Open http://%s:%s/ui/?secret=%s in your browser\n", host, port, options.Experimental.ClashAPI.Secret)
 }
 
 func setLog(options *option.Options, opt *RostovVPNOptions) {
