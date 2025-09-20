@@ -90,10 +90,10 @@ func normalizeDNSAddress(addr string) string {
 		}
 	}
 
-	// ВАЖНО: для udp/tcp в legacy многие сборки хотят «host:port» без схемы.
-	if strings.HasPrefix(low, "udp://") || strings.HasPrefix(low, "tcp://") {
-		return u.Host
-	}
+	// // ВАЖНО: для udp/tcp в legacy многие сборки хотят «host:port» без схемы.
+	// if strings.HasPrefix(low, "udp://") || strings.HasPrefix(low, "tcp://") {
+	// 	return u.Host
+	// }
 	return u.String()
 }
 
@@ -135,6 +135,8 @@ func BuildConfig(opt RostovVPNOptions, input option.Options) (*option.Options, e
 	setLog(&options, &opt)
 	setInbound(&options, &opt)
 	setDns(&options, &opt)
+	fmt.Printf("[debug] Region=%q BlockAds=%v EnableDNSRouting=%v ConnTestUrl=%q\n",
+		opt.Region, opt.BlockAds, opt.EnableDNSRouting, opt.ConnectionTestUrl)
 	setRoutingOptions(&options, &opt)
 	setFakeDns(&options, &opt)
 	err := setOutbounds(&options, &input, &opt)
@@ -150,17 +152,31 @@ func addForceDirect(options *option.Options, opt *RostovVPNOptions, directDNSDom
 		return
 	}
 	directDomains := make([]string, 0, len(directDNSDomains))
+	fmt.Println("[addForceDirect] !!! \n", directDomains, "\n !!! [addForceDirect]")
+
 	for domain := range directDNSDomains {
+		if domain == "" {
+			continue
+		}
 		directDomains = append(directDomains, domain)
 	}
-	sort.Strings(directDomains)
-	domains := strings.Join(directDomains, ",")
-	directRule := Rule{Domains: domains, Outbound: OutboundBypassTag}
-	dnsRule := directRule.MakeDNSRule()
-	dnsRule.DNSRuleAction = option.DNSRuleAction{
-		Action:       C.RuleActionTypeRoute,
-		RouteOptions: option.DNSRouteActionOptions{Server: DNSDirectTag},
+	if len(directDomains) == 0 {
+		return
 	}
+	sort.Strings(directDomains)
+	dnsRule := option.DefaultDNSRule{
+		RawDefaultDNSRule: option.RawDefaultDNSRule{
+			Domain: directDomains, // <— массив доменов (например, ["rostovvpn.run.place"])
+		},
+		DNSRuleAction: option.DNSRuleAction{
+			Action: C.RuleActionTypeRoute,
+			RouteOptions: option.DNSRouteActionOptions{
+				Server: DNSDirectTag, // dns-direct
+			},
+		},
+	}
+
+	// Препендим, чтобы оно сработало раньше общих правил
 	options.DNS.Rules = append([]option.DNSRule{{Type: C.RuleTypeDefault, DefaultOptions: dnsRule}}, options.DNS.Rules...)
 }
 func setOutbounds(options *option.Options, input *option.Options, opt *RostovVPNOptions) error {
@@ -339,7 +355,15 @@ func setClashAPI(options *option.Options, opt *RostovVPNOptions) {
 	}
 
 	if options.Experimental.ClashAPI.ExternalController == "" {
-		options.Experimental.ClashAPI.ExternalController = fmt.Sprintf("127.0.0.1:%d", opt.ClashApiPort)
+		host := "127.0.0.1"
+		if opt.AllowConnectionFromLAN {
+			host = "0.0.0.0"
+		}
+		port := opt.ClashApiPort
+		if port == 0 {
+			port = 16756
+		}
+		options.Experimental.ClashAPI.ExternalController = fmt.Sprintf("%s:%d", host, port)
 	}
 
 	// secret: если уже задан в файле — не трогаем; иначе берём из опций; иначе сгенерим
@@ -470,19 +494,32 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 	}
 	dnsOptions.Servers = []option.DNSServerOptions{
 		// remote (udp://8.8.8.8 из shared_prefs -> "8.8.8.8")
-		legacyDNSServer(DNSRemoteTag, normalizeDNSAddress(opt.RemoteDnsAddress), DNSDirectTag, opt.RemoteDnsDomainStrategy, ""),
+		newDNSServer(DNSRemoteTag, normalizeDNSAddress(opt.RemoteDnsAddress), DNSDirectTag, opt.RemoteDnsDomainStrategy, ""),
+		// legacyDNSServer(DNSRemoteTag, normalizeDNSAddress(opt.RemoteDnsAddress), DNSDirectTag, opt.RemoteDnsDomainStrategy, ""),
 
 		// DoH с «анти-ДПИ» (оставляем legacy https + детур на direct)
-		legacyDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", "", opt.DirectDnsDomainStrategy, OutboundDirectTag),
-
+		// legacyDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", "", opt.DirectDnsDomainStrategy, OutboundDirectTag),
+		newDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", DNSLocalTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
 		// direct (udp)
-		legacyDNSServer(DNSDirectTag, normalizeDNSAddress(opt.DirectDnsAddress), DNSLocalTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
+		// legacyDNSServer(DNSDirectTag, normalizeDNSAddress(opt.DirectDnsAddress), DNSLocalTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
+		newDNSServer(DNSDirectTag, normalizeDNSAddress(opt.DirectDnsAddress), DNSLocalTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
 
 		// local/rcode — как было
-		legacyDNSServer(DNSLocalTag, "local", "", 0, OutboundDirectTag),
+		// legacyDNSServer(DNSLocalTag, "local", "", 0, OutboundDirectTag),
+		newDNSServer(DNSLocalTag, "local", "", 0, OutboundDirectTag),
+
 		legacyDNSServer(DNSBlockTag, "rcode://success", "", 0, ""),
+		// newDNSServer(DNSBlockTag, "rcode://success", "", 0, ""),
 	}
 	options.DNS = dnsOptions
+	fmt.Println("[setDns] !!! \n", dnsOptions, "\n !!! [setDns]")
+
+	// // ВАЖНО: если включены TLS-tricks — прокинем их прямо в DoH (dns-trick-direct)
+	// injectTLSTricksIntoDoH(options, opt)
+	// ВНИМАНИЕ: upstream xtls/sing-box не поддерживает tls_fragment/tls_padding/mixed_sni_case
+	// у DNS-серверов. Чтобы не уронить парсер — ничего не инжектим, но выводим предупреждение,
+	// если флаги включены.
+	warnIfTLSTricksRequestedButUnsupported(opt)
 
 	if ips := getIPs([]string{"www.speedtest.net", "sky.rethinkdns.com"}); len(ips) > 0 {
 		applyStaticIPHosts(options, map[string][]string{"sky.rethinkdns.com": ips})
@@ -515,6 +552,8 @@ func setFakeDns(options *option.Options, opt *RostovVPNOptions) {
 			},
 		},
 	}
+	fmt.Println("[setFakeDns] !!! \n", dnsRule, "\n !!! [setFakeDns]")
+
 	options.DNS.Rules = append(options.DNS.Rules, option.DNSRule{Type: C.RuleTypeDefault, DefaultOptions: dnsRule})
 }
 func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
@@ -556,6 +595,8 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 		},
 		DNSTricksDirectTag, // tag сервера из setDns()
 	))
+
+	fmt.Println("[setRoutingOptions] !!! dnsRules=\n", dnsRules, "]n !!! [setRoutingOptions]")
 
 	for _, rule := range opt.Rules {
 		routeRule := rule.MakeRule()
@@ -626,7 +667,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 		}
 		dnsRules = append(dnsRules, option.DNSRule{Type: C.RuleTypeDefault, DefaultOptions: dnsRule})
 	}
-
+	fmt.Println("[setRoutingOptions] !!! \n", *opt, "]n !!! [setRoutingOptions]")
 	if opt.BlockAds {
 		blockRuleSets := []struct {
 			Tag string
@@ -661,6 +702,16 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 			regionTags = append(regionTags, rs.Tag)
 			rulesets = append(rulesets, newRemoteRuleSet(rs.Tag, rs.URL))
 		}
+		dnsRules = append(dnsRules, newDNSRouteRule(
+			option.DefaultDNSRule{
+				RawDefaultDNSRule: option.RawDefaultDNSRule{
+					DomainSuffix: []string{"." + opt.Region},
+				},
+			},
+			DNSDirectTag,
+		))
+		fmt.Println("[setRoutingOptions] not other!!! \n", opt.Region, "\n\n\n\n\n", dnsRules, "]n !!! [setRoutingOptions]")
+
 		routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{RuleSet: regionTags}, OutboundDirectTag))
 		dnsRules = append(dnsRules, newDNSRouteRule(option.DefaultDNSRule{RawDefaultDNSRule: option.RawDefaultDNSRule{RuleSet: regionTags}}, DNSDirectTag))
 	}
@@ -696,11 +747,14 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 	        options.Route.DefaultNetworkStrategy = s
 	    }
 	} */
+	fmt.Println("[setRoutingOptions] !!! Rules\n", routeRules, "\n !!! [setRoutingOptions]")
 
 	options.Route.Rules = append(options.Route.Rules, routeRules...)
 	options.Route.RuleSet = append(options.Route.RuleSet, rulesets...)
 
 	if opt.EnableDNSRouting {
+		fmt.Println("[setRoutingOptions] !!! dnsRules\n", dnsRules, "\n !!! [setRoutingOptions]")
+
 		options.DNS.Rules = append(options.DNS.Rules, dnsRules...)
 	}
 }
@@ -745,6 +799,43 @@ func legacyDNSServer(tag, address, resolver string, strategy option.DomainStrate
 	}
 }
 
+func newDNSServer(tag, address, resolver string, strategy option.DomainStrategy, detour string) option.DNSServerOptions {
+	p, err := ParseDNSAddr(address)
+	fmt.Println("[newDNSServer] !!! \n\n\n\n", p, "\n\n\n\n !!! [newDNSServer]")
+	if err != nil {
+		return legacyDNSServer(tag, address, resolver, strategy, detour)
+	}
+	obj := map[string]any{}
+	if p.Host != "" {
+		obj["server"] = p.Host
+	}
+	if resolver != "" && strategy == 0 {
+		// короткая форма: просто "dns-local"
+		obj["domain_resolver"] = resolver
+	} else if resolver != "" || strategy != 0 {
+		// полная форма объектом
+		if resolver == "" {
+			resolver = DNSLocalTag // фолбек, чтобы не было пустого server
+		}
+		domainResolver := map[string]any{"server": resolver}
+		if strategy != 0 {
+			domainResolver["strategy"] = strategy
+		}
+		obj["domain_resolver"] = domainResolver
+	}
+	if detour != "" {
+		obj["detour"] = detour
+	}
+	if p.Port != 0 && p.Port != 53 {
+		obj["server_port"] = p.Port
+	}
+	return option.DNSServerOptions{
+		Type:    p.Scheme,
+		Tag:     tag,
+		Options: obj,
+	}
+}
+
 func newRemoteRuleSet(tag, url string) option.RuleSet {
 	return option.RuleSet{
 		Type:   C.RuleSetTypeRemote,
@@ -779,6 +870,58 @@ func newDNSRouteRule(rule option.DefaultDNSRule, server string) option.DNSRule {
 	}
 	return option.DNSRule{Type: C.RuleTypeDefault, DefaultOptions: rule}
 }
+
+// ----- TLS tricks injection for DoH (dns-trick-direct) -----
+func hasTLSTricks(opt *RostovVPNOptions) bool {
+	if opt == nil {
+		return false
+	}
+	// считаем включённым, если активен любой из флагов
+	return opt.TLSTricks.EnableFragment || opt.TLSTricks.MixedSNICase || opt.TLSTricks.EnablePadding
+}
+
+// По умолчанию — только варнинг. Инъекцию не делаем, чтобы не сломать парсер.
+func warnIfTLSTricksRequestedButUnsupported(opt *RostovVPNOptions) {
+	if hasTLSTricks(opt) {
+		fmt.Println("[dns] TLS tricks (fragment/padding/mixed_sni_case) запрошены," +
+			" но текущая сборка sing-box (xtls upstream) их не поддерживает на DNS-серверах; пропускаю.")
+	}
+}
+
+// Если понадобится попробовать схему через объект TLS (вдруг твой форк это умеет),
+// то можно заменить warnIfTLSTricksRequestedButUnsupported() на этот вариант:
+//
+// func tryInjectTLSTricksViaTLSObject(options *option.Options, opt *RostovVPNOptions) {
+//     if options == nil || options.DNS == nil || !hasTLSTricks(opt) {
+//         return
+//     }
+//     for i := range options.DNS.Servers {
+//         s := &options.DNS.Servers[i]
+//         if s.Tag != DNSTricksDirectTag || (s.Type != "https" && s.Type != "h3") {
+//             continue
+//         }
+//         mm, ok := s.Options.(map[string]any); if !ok { continue }
+//         // ПРЕДУПРЕЖДЕНИЕ: если парсер не знает эти поля внутри "tls" — конфиг упадёт.
+//         tlsObj := map[string]any{"enabled": true}
+//         // Ниже ключи примерные; включай, только если точно поддерживаются сборкой форка.
+//         if opt.TLSTricks.MixedSNICase { tlsObj["mixed_case_sni"] = true }
+//         if opt.TLSTricks.EnableFragment {
+//             frag := map[string]any{}
+//             if v := strings.TrimSpace(opt.TLSTricks.FragmentSize); v != "" { frag["size"] = v }
+//             if v := strings.TrimSpace(opt.TLSTricks.FragmentSleep); v != "" { frag["sleep"] = v }
+//             if len(frag) > 0 { tlsObj["fragment"] = frag }
+//         }
+//         if opt.TLSTricks.EnablePadding {
+//             pad := map[string]any{}
+//             if v := strings.TrimSpace(opt.TLSTricks.PaddingSize); v != "" { pad["size"] = v }
+//             if len(pad) > 0 { tlsObj["padding"] = pad }
+//         }
+//         // merge
+//         mm["tls"] = tlsObj
+//         s.Options = mm
+//     }
+// }
+// ----- /TLS tricks -----
 
 func applyStaticIPHosts(options *option.Options, records map[string][]string) {
 	if options.DNS == nil || len(records) == 0 {
@@ -858,6 +1001,8 @@ func applyStaticIPHosts(options *option.Options, records map[string][]string) {
 			},
 		},
 	}
+	fmt.Println("[applyStaticIPHosts] !!! dnsRule\n", dnsRule, "\n !!! [applyStaticIPHosts]")
+
 	options.DNS.Rules = append(options.DNS.Rules, option.DNSRule{Type: C.RuleTypeDefault, DefaultOptions: dnsRule})
 }
 

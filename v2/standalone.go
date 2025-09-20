@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/Darkmen203/rostovvpn-core/config"
 	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
+	dns "github.com/sagernet/sing-dns"
 
 	"github.com/sagernet/sing-box/experimental/libbox"
 	"github.com/sagernet/sing-box/option"
@@ -205,7 +207,7 @@ func buildConfig(configContent string, options config.RostovVPNOptions) (string,
 			ca.ExternalController = fmt.Sprintf("%s:%d", host, port)
 		}
 		if ca.Secret == "" {
-			fmt.Print("[standalone.buildConfig] !!!", options.ClashApiSecret," !!! [standalone.buildConfig]")
+			fmt.Print("[standalone.buildConfig] !!!", options.ClashApiSecret, " !!! [standalone.buildConfig]")
 			if options.ClashApiSecret == "" {
 				options.ClashApiSecret = generateRandomString(16) // или твоя функция
 			}
@@ -307,6 +309,8 @@ func readConfigBytes(content []byte) (*option.Options, error) {
 
 func ReadRostovVPNOptionsAt(path string) (*config.RostovVPNOptions, error) {
 	data, err := os.ReadFile(path)
+	fmt.Print("[ReadRostovVPNOptionsAt] !!!  path\n", path, "\n\n\n\n", data, ",\n  !!! [ReadRostovVPNOptionsAt] ")
+
 	if err != nil {
 		// Нет файла? — вернём дефолты, это не критично для standalone.
 		return config.DefaultRostovVPNOptions(), nil
@@ -346,32 +350,161 @@ func ReadRostovVPNOptionsAt(path string) (*config.RostovVPNOptions, error) {
 
 // ---- helpers ----
 func applyFlutterPrefs(raw map[string]any, opt *config.RostovVPNOptions) {
-	// DNS
+	fmt.Println("[debug applyFlutterPrefs] \n", raw, "\n [debug applyFlutterPrefs]")
+
+	// --- Регион/локаль/сеть ---
+	if v := str(raw, "flutter.region"); v != "" {
+		opt.Region = strings.ToLower(v)
+	}
+	if v, ok := boolean(raw, "flutter.bypass-lan"); ok {
+		opt.BypassLAN = v
+	}
+	if v, ok := boolean(raw, "flutter.allow-connection-from-lan"); ok {
+		opt.AllowConnectionFromLAN = v
+	}
+
+	// --- Системный прокси ---
+	if v := str(raw, "flutter.service-mode"); strings.EqualFold(v, "system-proxy") {
+		opt.SetSystemProxy = true
+	}
+
+	// --- DNS адреса ---
 	if v := str(raw, "flutter.remote-dns-address"); v != "" {
 		opt.RemoteDnsAddress = v
 	}
 	if v := str(raw, "flutter.direct-dns-address"); v != "" {
 		opt.DirectDnsAddress = v
 	}
-	// LAN/Region
-	if v, ok := boolean(raw, "flutter.bypass-lan"); ok {
-		opt.BypassLAN = v
+
+	// --- DNS стратегии разрешения доменов ---
+	if v := str(raw, "flutter.remote-dns-domain-strategy"); v != "" {
+		if s, ok := parseDomainStrategy(v); ok {
+			opt.RemoteDnsDomainStrategy = s
+		}
 	}
-	if v := str(raw, "flutter.region"); v != "" {
-		opt.Region = strings.ToLower(v)
+	if v := str(raw, "flutter.direct-dns-domain-strategy"); v != "" {
+		if s, ok := parseDomainStrategy(v); ok {
+			opt.DirectDnsDomainStrategy = s
+		}
 	}
-	// Системный прокси — включает mixed-in SetSystemProxy
-	if v := str(raw, "flutter.service-mode"); strings.EqualFold(v, "system-proxy") {
-		opt.SetSystemProxy = true
+
+	// --- Глобальный IPv6 режим (используется как DomainStrategy в inbounds) ---
+	if v := str(raw, "flutter.ipv6-mode"); v != "" {
+		if s, ok := parseDomainStrategy(v); ok {
+			opt.IPv6Mode = s
+		}
 	}
-	// Лог-левел (если вдруг передаёте из аппки)
+
+	// --- Маршрутизация / DNS ---
+	if v, ok := boolean(raw, "flutter.enable-dns-routing"); ok {
+		opt.EnableDNSRouting = v
+	}
+	if v, ok := boolean(raw, "flutter.resolve-destination"); ok {
+		opt.ResolveDestination = v
+	}
+
+	// --- Блокировка рекламы ---
+	if v, ok := boolean(raw, "flutter.block-ads"); ok {
+		opt.BlockAds = v
+	}
+
+	// --- Connection test URL ---
+	if v := str(raw, "flutter.connection-test-url"); v != "" {
+		vv := strings.TrimSpace(v)
+		if !strings.HasPrefix(vv, "http://") && !strings.HasPrefix(vv, "https://") {
+			vv = "http://" + vv
+		}
+		opt.ConnectionTestUrl = vv
+	}
+
+	// --- URL test interval (секунды) ---
+	if n, ok := intFromAny(raw["flutter.url-test-interval"]); ok && n > 0 {
+		// Не знаем точный тип поля, ставим безопасно через reflect:
+		rv := reflect.ValueOf(opt).Elem().FieldByName("URLTestInterval")
+		if rv.IsValid() && rv.CanSet() {
+			switch rv.Kind() {
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				rv.SetInt(int64(n))
+			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				rv.SetUint(uint64(n))
+			}
+		}
+	}
+
+	// --- Strict route ---
+	if v, ok := boolean(raw, "flutter.strict-route"); ok {
+		opt.StrictRoute = v
+	}
+
+	// --- TLS tricks ---
+	if v, ok := boolean(raw, "flutter.enable-tls-fragment"); ok {
+		opt.TLSTricks.EnableFragment = v
+	}
+	if v := str(raw, "flutter.tls-fragment-size"); v != "" {
+		opt.TLSTricks.FragmentSize = v
+	}
+	if v := str(raw, "flutter.tls-fragment-sleep"); v != "" {
+		opt.TLSTricks.FragmentSleep = v
+	}
+	if v, ok := boolean(raw, "flutter.enable-tls-mixed-sni-case"); ok {
+		opt.TLSTricks.MixedSNICase = v
+	}
+	if v, ok := boolean(raw, "flutter.enable-tls-padding"); ok {
+		opt.TLSTricks.EnablePadding = v
+	}
+	if v := str(raw, "flutter.tls-padding-size"); v != "" {
+		opt.TLSTricks.PaddingSize = v
+	}
+
+	// --- Clash API ---
+	if n, ok := intFromAny(raw["flutter.clash-api-port"]); ok && n > 0 && n < 65536 {
+		opt.ClashApiPort = uint16(n)
+	}
+
+	// (опционально) flutter.log-level
 	if v := str(raw, "flutter.log-level"); v != "" {
 		opt.LogLevel = v
 	}
-	// Можно добавить маппинги под будущие ключи:
-	//   flutter.enable-fake-dns  -> opt.EnableFakeDNS
-	//   flutter.default-domain-resolver -> opt.DefaultDomainResolver
-	//   flutter.default-network-strategy -> opt.DefaultNetworkStrategy
+}
+
+// map "prefer_ipv4|prefer_ipv6|ipv4_only|ipv6_only|as_is" → option.DomainStrategy
+func parseDomainStrategy(s string) (option.DomainStrategy, bool) {
+	v := strings.ToLower(strings.TrimSpace(s))
+	switch v {
+	case "as_is", "asis", "as-is":
+		return option.DomainStrategy(dns.DomainStrategyAsIS), true
+	case "prefer_ipv4", "prefer-ipv4", "ipv4_prefer":
+		return option.DomainStrategy(dns.DomainStrategyPreferIPv4), true
+	case "prefer_ipv6", "prefer-ipv6", "ipv6_prefer":
+		return option.DomainStrategy(dns.DomainStrategyPreferIPv6), true
+	case "ipv4_only", "force_ipv4", "ipv4":
+		return option.DomainStrategy(dns.DomainStrategyUseIPv4), true
+	case "ipv6_only", "force_ipv6", "ipv6":
+		return option.DomainStrategy(dns.DomainStrategyUseIPv6), true
+	}
+	return 0, false
+}
+
+func intFromAny(v any) (int, bool) {
+	switch t := v.(type) {
+	case float64:
+		return int(t), true
+	case float32:
+		return int(t), true
+	case int:
+		return t, true
+	case int64:
+		return int(t), true
+	case json.Number:
+		if n, err := t.Int64(); err == nil {
+			return int(n), true
+		}
+	case string:
+		if n, err := strconv.Atoi(strings.TrimSpace(t)); err == nil {
+			return n, true
+		}
+	}
+	return 0, false
 }
 
 func str(m map[string]any, key string) string {
