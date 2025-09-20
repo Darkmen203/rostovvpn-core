@@ -508,7 +508,7 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 		// legacyDNSServer(DNSLocalTag, "local", "", 0, OutboundDirectTag),
 		newDNSServer(DNSLocalTag, "local", "", 0, OutboundDirectTag),
 
-		legacyDNSServer(DNSBlockTag, "rcode://success", "", 0, ""),
+		// legacyDNSServer(DNSBlockTag, "rcode://success", "", 0, ""),
 		// newDNSServer(DNSBlockTag, "rcode://success", "", 0, ""),
 	}
 	options.DNS = dnsOptions
@@ -626,8 +626,20 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 		case "bypass":
 			server = DNSDirectTag
 		case "block":
-			server = DNSBlockTag
-			routeOpts.DisableCache = true
+			{
+				rc := option.DNSRCode(0) // или "REFUSED"/"NXDOMAIN" — как хочешь блокировать
+				dnsRule.DNSRuleAction = option.DNSRuleAction{
+					Action: C.RuleActionTypePredefined,
+					PredefinedOptions: option.DNSRouteActionPredefined{
+						Rcode: &rc,
+					},
+				}
+				dnsRules = append(dnsRules, option.DNSRule{
+					Type:           C.RuleTypeDefault,
+					DefaultOptions: dnsRule,
+				})
+			}
+			continue // важно: чтобы ниже не перезаписать dnsRule через RouteOptions
 		case "proxy":
 			server = DNSRemoteTag
 			if opt.EnableFakeDNS {
@@ -686,7 +698,16 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 			rulesets = append(rulesets, newRemoteRuleSet(rs.Tag, rs.URL))
 		}
 		routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{RuleSet: ruleSetTags}, OutboundBlockTag))
-		dnsRules = append(dnsRules, newDNSRouteRule(option.DefaultDNSRule{RawDefaultDNSRule: option.RawDefaultDNSRule{RuleSet: ruleSetTags}}, DNSBlockTag))
+		dnsRules = append(dnsRules,
+			newDNSPredefinedRule(
+				option.DefaultDNSRule{
+					RawDefaultDNSRule: option.RawDefaultDNSRule{
+						RuleSet: ruleSetTags,
+					},
+				},
+				option.DNSRCode(0),
+			),
+		)
 	}
 
 	if opt.Region != "other" {
@@ -715,7 +736,6 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 		routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{RuleSet: regionTags}, OutboundDirectTag))
 		dnsRules = append(dnsRules, newDNSRouteRule(option.DefaultDNSRule{RawDefaultDNSRule: option.RawDefaultDNSRule{RuleSet: regionTags}}, DNSDirectTag))
 	}
-
 	if options.Route == nil {
 		options.Route = &option.RouteOptions{
 			Final:               OutboundMainProxyTag,
@@ -867,6 +887,16 @@ func newDNSRouteRule(rule option.DefaultDNSRule, server string) option.DNSRule {
 	rule.DNSRuleAction = option.DNSRuleAction{
 		Action:       C.RuleActionTypeRoute,
 		RouteOptions: options,
+	}
+	return option.DNSRule{Type: C.RuleTypeDefault, DefaultOptions: rule}
+}
+
+func newDNSPredefinedRule(rule option.DefaultDNSRule, rcode option.DNSRCode) option.DNSRule {
+	rule.DNSRuleAction = option.DNSRuleAction{
+		Action: C.RuleActionTypePredefined,
+		PredefinedOptions: option.DNSRouteActionPredefined{
+			Rcode: &rcode, // например: "SUCCESS", "REFUSED", "NXDOMAIN"
+		},
 	}
 	return option.DNSRule{Type: C.RuleTypeDefault, DefaultOptions: rule}
 }
