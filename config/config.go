@@ -131,7 +131,7 @@ func BuildConfig(opt RostovVPNOptions, input option.Options) (*option.Options, e
 	}
 
 	fmt.Print("[BuildConfig] !!! input= \n", input, ",\n  !!! [BuildConfig] ")
-	setClashAPI(&options, &opt)
+	// setClashAPI(&options, &opt)
 	setLog(&options, &opt)
 	setInbound(&options, &opt)
 	setDns(&options, &opt)
@@ -462,7 +462,7 @@ func setInbound(options *option.Options, opt *RostovVPNOptions) {
 			ListenPort: opt.MixedPort,
 			InboundOptions: option.InboundOptions{
 				SniffEnabled:             true,
-				SniffOverrideDestination: true,
+				SniffOverrideDestination: false, // был true
 				DomainStrategy:           inboundDomainStrategy,
 			},
 		},
@@ -494,7 +494,9 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 	}
 	dnsOptions.Servers = []option.DNSServerOptions{
 		// remote (udp://8.8.8.8 из shared_prefs -> "8.8.8.8")
-		newDNSServer(DNSRemoteTag, normalizeDNSAddress(opt.RemoteDnsAddress), DNSDirectTag, opt.RemoteDnsDomainStrategy, ""),
+		// newDNSServer(DNSRemoteTag, normalizeDNSAddress(opt.RemoteDnsAddress), DNSDirectTag, opt.RemoteDnsDomainStrategy, ""),
+		//  ВАЖНО: удалённый DNS ходит ЧЕРЕЗ proxy (select), чтобы DPI не рвал
+		newDNSServer(DNSRemoteTag, normalizeDNSAddress(opt.RemoteDnsAddress), DNSDirectTag, opt.RemoteDnsDomainStrategy, OutboundSelectTag),
 		// legacyDNSServer(DNSRemoteTag, normalizeDNSAddress(opt.RemoteDnsAddress), DNSDirectTag, opt.RemoteDnsDomainStrategy, ""),
 
 		// DoH с «анти-ДПИ» (оставляем legacy https + детур на direct)
@@ -705,7 +707,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 						RuleSet: ruleSetTags,
 					},
 				},
-				option.DNSRCode(0),
+				option.DNSRCode(3),
 			),
 		)
 	}
@@ -740,7 +742,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 		options.Route = &option.RouteOptions{
 			Final:               OutboundMainProxyTag,
 			AutoDetectInterface: true,
-			OverrideAndroidVPN:  true,
+			OverrideAndroidVPN:  runtime.GOOS == "android",
 			DefaultDomainResolver: &option.DomainResolveOptions{
 				Server: pickDefaultResolver(opt),
 			},
@@ -750,7 +752,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 			options.Route.Final = OutboundMainProxyTag
 		}
 		options.Route.AutoDetectInterface = true
-		options.Route.OverrideAndroidVPN = true
+		options.Route.OverrideAndroidVPN = runtime.GOOS == "android"
 		if options.Route.DefaultDomainResolver == nil {
 			options.Route.DefaultDomainResolver = &option.DomainResolveOptions{Server: pickDefaultResolver(opt)}
 		} else if options.Route.DefaultDomainResolver.Server == "" {
@@ -797,7 +799,7 @@ func pickDefaultResolver(opt *RostovVPNOptions) string {
 	if opt.DefaultDomainResolver != "" {
 		return opt.DefaultDomainResolver
 	}
-	return DNSRemoteTag
+	return DNSDirectTag
 }
 func legacyDNSServer(tag, address, resolver string, strategy option.DomainStrategy, detour string) option.DNSServerOptions {
 	legacy := &option.LegacyDNSServerOptions{
@@ -829,21 +831,17 @@ func newDNSServer(tag, address, resolver string, strategy option.DomainStrategy,
 	if p.Host != "" {
 		obj["server"] = p.Host
 	}
-	if resolver != "" && strategy == 0 {
-		// короткая форма: просто "dns-local"
-		obj["domain_resolver"] = resolver
-	} else if resolver != "" || strategy != 0 {
-		// полная форма объектом
+	if resolver != "" || strategy != 0 {
 		if resolver == "" {
-			resolver = DNSLocalTag // фолбек, чтобы не было пустого server
+			resolver = DNSLocalTag
 		}
-		domainResolver := map[string]any{"server": resolver}
+		dr := map[string]any{"server": resolver}
 		if strategy != 0 {
-			domainResolver["strategy"] = strategy
+			dr["strategy"] = strategy
 		}
-		obj["domain_resolver"] = domainResolver
+		obj["domain_resolver"] = dr
 	}
-	if detour != "" {
+	if detour != "" && detour != "direct" && detour != "dns-trick-direct" && detour != "dns-direct" && detour != "local" {
 		obj["detour"] = detour
 	}
 	if p.Port != 0 && p.Port != 53 {
@@ -864,6 +862,7 @@ func newRemoteRuleSet(tag, url string) option.RuleSet {
 		RemoteOptions: option.RemoteRuleSet{
 			URL:            url,
 			UpdateInterval: badoption.Duration(5 * 24 * time.Hour),
+			DownloadDetour:  OutboundSelectTag,
 		},
 	}
 }

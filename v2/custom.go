@@ -16,12 +16,19 @@ import (
 )
 
 var (
-	Box              *libbox.BoxService
+	Box              *CoreService
 	RostovVPNOptions *config.RostovVPNOptions
 	activeConfigPath string
 	coreLogFactory   log.Factory
 	useFlutterBridge bool = true
+	oldCommandServer *CommandServer
 )
+
+func startCommandServer() error {
+    // размер буфера логов нам не нужен — оставим заглушку
+    oldCommandServer = NewCommandServer(2048)
+    return oldCommandServer.Start()
+}
 
 func StopAndAlert(msgType pb.MessageType, message string) {
 	SetCoreStatus(pb.CoreState_STOPPED, msgType, message)
@@ -139,8 +146,7 @@ func StartService(in *pb.StartRequest) (*pb.CoreInfoResponse, error) {
 		<-time.After(250 * time.Millisecond)
 	}
 
-	err = instance.Start()
-	if err != nil {
+	if err = instance.Run(); err != nil {
 		Log(pb.LogLevel_FATAL, pb.LogType_CORE, err.Error())
 		resp := SetCoreStatus(pb.CoreState_STOPPED, pb.MessageType_START_SERVICE, err.Error())
 		StopAndAlert(pb.MessageType_UNEXPECTED_ERROR, err.Error())
@@ -148,7 +154,7 @@ func StartService(in *pb.StartRequest) (*pb.CoreInfoResponse, error) {
 	}
 	Box = instance
 	if in.EnableOldCommandServer {
-		oldCommandServer.SetService(Box)
+		oldCommandServer.SetService(Box) // если тут жёсткий тип *libbox.BoxService — см. примечание ниже
 	}
 
 	resp := SetCoreStatus(pb.CoreState_STARTED, pb.MessageType_EMPTY, "")
