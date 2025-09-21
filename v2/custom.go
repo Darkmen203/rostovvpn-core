@@ -13,6 +13,9 @@ import (
 	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 	"github.com/sagernet/sing-box/experimental/libbox"
 	"github.com/sagernet/sing-box/log"
+
+	"github.com/sagernet/sing-box/option"
+	singjson "github.com/sagernet/sing/common/json"
 )
 
 var (
@@ -25,9 +28,9 @@ var (
 )
 
 func startCommandServer() error {
-    // размер буфера логов нам не нужен — оставим заглушку
-    oldCommandServer = NewCommandServer(2048)
-    return oldCommandServer.Start()
+	// размер буфера логов нам не нужен — оставим заглушку
+	oldCommandServer = NewCommandServer(2048)
+	return oldCommandServer.Start()
 }
 
 func StopAndAlert(msgType pb.MessageType, message string) {
@@ -96,7 +99,7 @@ func StartService(in *pb.StartRequest) (*pb.CoreInfoResponse, error) {
 	}
 	Log(pb.LogLevel_DEBUG, pb.LogType_CORE, "Parsing Config")
 
-	parsedContent, err := readOptions(content)
+	parsedContent, err := parseOptionsStrict(content)
 	Log(pb.LogLevel_DEBUG, pb.LogType_CORE, "Parsed")
 
 	if err != nil {
@@ -107,6 +110,9 @@ func StartService(in *pb.StartRequest) (*pb.CoreInfoResponse, error) {
 	}
 	if !in.EnableRawConfig {
 		Log(pb.LogLevel_DEBUG, pb.LogType_CORE, "Building config")
+		if RostovVPNOptions == nil {
+			RostovVPNOptions = config.DefaultRostovVPNOptions()
+		}
 		parsedContent_tmp, err := config.BuildConfig(*RostovVPNOptions, parsedContent)
 		if err != nil {
 			Log(pb.LogLevel_FATAL, pb.LogType_CORE, err.Error())
@@ -114,6 +120,19 @@ func StartService(in *pb.StartRequest) (*pb.CoreInfoResponse, error) {
 			StopAndAlert(pb.MessageType_UNEXPECTED_ERROR, err.Error())
 			return resp, err
 		}
+
+		// raw, err := json.Marshal(parsedContent_tmp)
+		// if err != nil {
+		// 	resp := SetCoreStatus(pb.CoreState_STOPPED, pb.MessageType_ERROR_BUILDING_CONFIG, err.Error())
+
+		// 	return resp, err
+		// }
+
+		// parsed, err := config.ParseConfigContent(string(raw), true, RostovVPNOptions, false)
+		// if err != nil {
+		// 	return parsed, fmt.Errorf("failed to reparse config via registry JSON: %w", err)
+		// }
+
 		parsedContent = *parsedContent_tmp
 	}
 	Log(pb.LogLevel_DEBUG, pb.LogType_CORE, "Saving config")
@@ -215,18 +234,6 @@ func ChangeRostovVPNSettings(in *pb.ChangeRostovVPNSettingsRequest) (*pb.CoreInf
 	if err != nil {
 		return nil, err
 	}
-	if RostovVPNOptions.Warp.WireguardConfigStr != "" {
-		err := json.Unmarshal([]byte(RostovVPNOptions.Warp.WireguardConfigStr), &RostovVPNOptions.Warp.WireguardConfig)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if RostovVPNOptions.Warp2.WireguardConfigStr != "" {
-		err := json.Unmarshal([]byte(RostovVPNOptions.Warp2.WireguardConfigStr), &RostovVPNOptions.Warp2.WireguardConfig)
-		if err != nil {
-			return nil, err
-		}
-	}
 	return &pb.CoreInfoResponse{}, nil
 }
 
@@ -251,13 +258,20 @@ func GenerateConfig(in *pb.GenerateConfigRequest) (*pb.GenerateConfigResponse, e
 	}, nil
 }
 
+// parseOptionsStrict парсит конфиг sing-box в строго типизированный option.Options.
+func parseOptionsStrict(content string) (option.Options, error) {
+	ctx := libbox.BaseContext(nil)
+	// UnmarshalExtendedContext возвращает (T, error)
+	return singjson.UnmarshalExtendedContext[option.Options](ctx, []byte(content))
+}
+
 func generateConfigFromFile(path string, configOpt config.RostovVPNOptions) (string, error) {
 	os.Chdir(filepath.Dir(path))
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
 	}
-	options, err := readOptions(string(content))
+	options, err := parseOptionsStrict(string(content))
 	if err != nil {
 		return "", err
 	}

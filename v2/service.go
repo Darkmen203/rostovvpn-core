@@ -25,6 +25,9 @@ import (
 	"github.com/sagernet/sing-box/common/urltest"
 	"github.com/sagernet/sing-box/experimental/clashapi"
 	"github.com/sagernet/sing-box/experimental/libbox"
+	// IMPORTANT: use libbox context + sing/common/json to decode into typed option structs
+	// libbox "github.com/sagernet/sing-box/experimental/libbox"
+	C "github.com/sagernet/sing-box/constant"
 )
 
 var (
@@ -78,6 +81,36 @@ func NewService(opts option.Options) (*CoreService, error) {
 	hist := urltest.NewHistoryStorage()
 	ctx = service.ContextWithPtr(ctx, hist)
 
+	for i, s := range opts.DNS.Servers {
+		log.Info("DNS[", i, "] type=", s.Type, " opts=", fmt.Sprintf("%T", s.Options))
+	}
+
+	for i, ob := range opts.Outbounds {
+		// Страховка от старой пустышки:
+		if fmt.Sprintf("%T", ob.Options) == "config.emptyJSON" {
+			return nil, fmt.Errorf("outbound %d (%s): untyped options (config.emptyJSON) — замените на StubOptions/DirectOutboundOptions или nil", i, ob.Tag)
+		}
+
+		switch ob.Type {
+		case C.TypeVLESS:
+			if _, ok := ob.Options.(*option.VLESSOutboundOptions); !ok {
+				return nil, fmt.Errorf("outbound %d (%s): VLESS expects *option.VLESSOutboundOptions, got %T", i, ob.Tag, ob.Options)
+			}
+		case C.TypeDirect:
+			if ob.Options != nil {
+				if _, ok := ob.Options.(*option.DirectOutboundOptions); !ok {
+					return nil, fmt.Errorf("outbound %d (%s): Direct expects *option.DirectOutboundOptions or nil, got %T", i, ob.Tag, ob.Options)
+				}
+			}
+		case C.TypeDNS, C.TypeBlock:
+			if ob.Options != nil {
+				if _, ok := ob.Options.(*option.StubOptions); !ok {
+					return nil, fmt.Errorf("outbound %d (%s): %s expects *option.StubOptions or nil, got %T", i, ob.Tag, ob.Type, ob.Options)
+				}
+			}
+		}
+	}
+
 	inst, err := box.New(box.Options{
 		Context: ctx,
 		Options: opts,
@@ -88,7 +121,11 @@ func NewService(opts option.Options) (*CoreService, error) {
 	}
 
 	// Если нужен хук режимов Clash — можно достать сервер из контекста
-	clash := service.FromContext[*clashapi.Server](ctx) // может быть nil
+	var clash *clashapi.Server
+	if opts.Experimental != nil && opts.Experimental.ClashAPI != nil {
+		// Clash действительно включён в финальном конфиге — теперь можно брать из контекста
+		clash = service.FromContext[*clashapi.Server](ctx) // может быть nil, это ок
+	}
 
 	runtimeDebug.FreeOSMemory()
 	return &CoreService{
@@ -125,11 +162,14 @@ func (s *CoreService) Close() error {
 }
 
 func readOptions(configContent string) (option.Options, error) {
-	// ВАЖНО: нужен контекст с зарегистрированными реестрами sing-box
+	// Decode JSON into typed sing-box option structs. If we use std json.Unmarshal,
+	// nested fields like RemoteDNSServerOptions become map[string]any, which later
+	// crashes in dns.RegisterTransport with:
+	//   interface conversion: interface {} is map[string]interface {}, not *option.RemoteDNSServerOptions
 	ctx := libbox.BaseContext(nil)
-	options, err := singjson.UnmarshalExtendedContext[option.Options](ctx, []byte(configContent))
+	opts, err := singjson.UnmarshalExtendedContext[option.Options](ctx, []byte(configContent))
 	if err != nil {
-		return option.Options{}, E.Cause(err, "decode config")
+		return option.Options{}, fmt.Errorf("decode config: %w", err)
 	}
-	return options, nil
+	return opts, nil
 }

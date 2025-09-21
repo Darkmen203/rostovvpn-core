@@ -1,9 +1,13 @@
 package v2
 
 import (
+	"fmt"
 	"sync"
 
+	"time"
+
 	"github.com/sagernet/sing-box/experimental/clashapi"
+	"github.com/sagernet/sing-box/log"
 )
 
 // Минимальный сервер: только два события (URL-test обновления и смена Clash-режима)
@@ -37,11 +41,24 @@ func (s *CommandServer) SetService(svc *CoreService) {
 		svc.urlHistory.SetHook(s.urlTestUpdate)
 	}
 	// Clash mode: если Clash API поднят — отдать канал для оповещения
-	if svc.clashServer != nil {
-		if srv, ok := svc.clashServer.(*clashapi.Server); ok {
-			srv.SetModeUpdateHook(s.modeUpdate)
-		}
+	fmt.Println("[SetService] !!! svc.clashServer=\n\n\n", svc.clashServer, "\n [SetService]")
+	if svc.clashServer == nil {
+		log.Info("Clash API not present — skip hooks")
+		return
 	}
+
+	// ЕСЛИ оставишь включаемый Clash: только тогда вешай хук,
+	// и в v1.12.8 он принимает КАНАЛ:
+	go func(srv *clashapi.Server) {
+		time.Sleep(200 * time.Millisecond)
+		defer func() {
+			if r := recover(); r != nil {
+				log.Warn("Skip Clash hook setup: ", r)
+			}
+		}()
+		srv.SetModeUpdateHook(s.modeUpdate)
+		log.Info("Clash mode hook installed")
+	}(svc.clashServer)
 }
 
 // Заглушки под старый интерфейс (ничего не слушаем, просто OK)

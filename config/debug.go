@@ -13,17 +13,39 @@ import (
 	singjson "github.com/sagernet/sing/common/json"
 )
 
-func SaveCurrentConfig(path string, options option.Options) error {
-	cfg, err := ToJson(options)
+//	func SaveCurrentConfig(path string, options option.Options) error {
+//		cfg, err := ToJson(options)
+//		if err != nil {
+//			return err
+//		}
+//		p, err := filepath.Abs(path)
+//		fmt.Printf("Saving config to %v %+v\n", p, err)
+//		if err != nil {
+//			return err
+//		}
+//		return os.WriteFile(p, []byte(cfg), 0644)
+//	}
+func SaveCurrentConfig(path string, opts option.Options) error {
+	ctx := libbox.BaseContext(nil)
+
+	// сериализация с учётом полиморфных полей sing-box
+	b, err := singjson.MarshalContext(ctx, opts)
 	if err != nil {
 		return err
 	}
+
+	// (опционально) красиво отформатировать
+	var pretty bytes.Buffer
+	if err := json.Indent(&pretty, b, "", "  "); err == nil {
+		b = pretty.Bytes()
+	}
+
 	p, err := filepath.Abs(path)
-	fmt.Printf("Saving config to %v %+v\n", p, err)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(p, []byte(cfg), 0644)
+	fmt.Printf("Saving config to %v %v\n", p, err)
+	return os.WriteFile(p, b, 0644)
 }
 
 func ToJson(opt option.Options) (string, error) {

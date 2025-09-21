@@ -460,6 +460,9 @@ func applyFlutterPrefs(raw map[string]any, opt *config.RostovVPNOptions) {
 	if n, ok := intFromAny(raw["flutter.clash-api-port"]); ok && n > 0 && n < 65536 {
 		opt.ClashApiPort = uint16(n)
 	}
+	if v, ok := boolean(raw, "flutter.enable-clash-api"); ok {
+		opt.EnableClashApi = v
+	}
 
 	// (опционально) flutter.log-level
 	if v := str(raw, "flutter.log-level"); v != "" {

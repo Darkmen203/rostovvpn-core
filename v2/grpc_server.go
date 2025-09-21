@@ -13,6 +13,7 @@ import (
 
 	"github.com/Darkmen203/rostovvpn-core/extension"
 	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
+	"github.com/sagernet/sing-box/experimental/clashapi"
 
 	"google.golang.org/grpc"
 )
@@ -28,7 +29,7 @@ type CoreService struct {
 	cancel      context.CancelFunc
 	instance    *box.Box
 	urlHistory  adapter.URLTestHistoryStorage
-	clashServer adapter.ClashServer
+	clashServer *clashapi.Server
 }
 
 type TunnelService struct {

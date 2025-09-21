@@ -45,10 +45,6 @@ const (
 
 var OutboundMainProxyTag = OutboundSelectTag
 
-type emptyJSON struct{}
-
-func (emptyJSON) MarshalJSON() ([]byte, error) { return []byte("{}"), nil }
-
 func normalizeDNSAddress(addr string) string {
 	addr = strings.TrimSpace(addr)
 	if addr == "" {
@@ -130,8 +126,14 @@ func BuildConfig(opt RostovVPNOptions, input option.Options) (*option.Options, e
 		}
 	}
 
+	if !opt.EnableClashApi {
+		if options.Experimental != nil {
+			options.Experimental.ClashAPI = nil
+		}
+	}
+
 	fmt.Print("[BuildConfig] !!! input= \n", input, ",\n  !!! [BuildConfig] ")
-	// setClashAPI(&options, &opt)
+	setClashAPI(&options, &opt)
 	setLog(&options, &opt)
 	setInbound(&options, &opt)
 	setDns(&options, &opt)
@@ -307,12 +309,12 @@ func setOutbounds(options *option.Options, input *option.Options, opt *RostovVPN
 
 	// Базовые аутбаунды — без несуществующих Options (nil это нормально)
 	baseOutbounds := []option.Outbound{
-		{Type: C.TypeDNS, Tag: OutboundDNSTag, Options: emptyJSON{}},
-		{Type: C.TypeDirect, Tag: OutboundDirectTag, Options: emptyJSON{}},
-		{Type: C.TypeDirect, Tag: OutboundBypassTag, Options: emptyJSON{}},
-		{Type: C.TypeBlock, Tag: OutboundBlockTag, Options: emptyJSON{}},
+		// DNS/Block — «заглушечные» опции StubOptions
+		{Type: C.TypeDNS, Tag: OutboundDNSTag, Options: &option.StubOptions{}},
+		{Type: C.TypeDirect, Tag: OutboundDirectTag, Options: &option.DirectOutboundOptions{}},
+		{Type: C.TypeDirect, Tag: OutboundBypassTag, Options: &option.DirectOutboundOptions{}},
+		{Type: C.TypeBlock, Tag: OutboundBlockTag, Options: &option.StubOptions{}},
 	}
-
 	options.Outbounds = append(outbounds, baseOutbounds...)
 
 	addForceDirect(options, opt, directDNSDomains)
@@ -356,6 +358,7 @@ func setClashAPI(options *option.Options, opt *RostovVPNOptions) {
 
 	if options.Experimental.ClashAPI.ExternalController == "" {
 		host := "127.0.0.1"
+
 		if opt.AllowConnectionFromLAN {
 			host = "0.0.0.0"
 		}
@@ -700,16 +703,16 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 			rulesets = append(rulesets, newRemoteRuleSet(rs.Tag, rs.URL))
 		}
 		routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{RuleSet: ruleSetTags}, OutboundBlockTag))
-		dnsRules = append(dnsRules,
-			newDNSPredefinedRule(
-				option.DefaultDNSRule{
-					RawDefaultDNSRule: option.RawDefaultDNSRule{
-						RuleSet: ruleSetTags,
-					},
-				},
-				option.DNSRCode(3),
-			),
-		)
+		// dnsRules = append(dnsRules,
+		// 	newDNSPredefinedRule(
+		// 		option.DefaultDNSRule{
+		// 			RawDefaultDNSRule: option.RawDefaultDNSRule{
+		// 				RuleSet: ruleSetTags,
+		// 			},
+		// 		},
+		// 		option.DNSRCode(3),
+		// 	),
+		// )
 	}
 
 	if opt.Region != "other" {
@@ -821,38 +824,38 @@ func legacyDNSServer(tag, address, resolver string, strategy option.DomainStrate
 	}
 }
 
-func newDNSServer(tag, address, resolver string, strategy option.DomainStrategy, detour string) option.DNSServerOptions {
-	p, err := ParseDNSAddr(address)
-	fmt.Println("[newDNSServer] !!! \n\n\n\n", p, "\n\n\n\n !!! [newDNSServer]")
-	if err != nil {
-		return legacyDNSServer(tag, address, resolver, strategy, detour)
-	}
-	obj := map[string]any{}
-	if p.Host != "" {
-		obj["server"] = p.Host
-	}
-	if resolver != "" || strategy != 0 {
-		if resolver == "" {
-			resolver = DNSLocalTag
-		}
-		dr := map[string]any{"server": resolver}
-		if strategy != 0 {
-			dr["strategy"] = strategy
-		}
-		obj["domain_resolver"] = dr
-	}
-	if detour != "" && detour != "direct" && detour != "dns-trick-direct" && detour != "dns-direct" && detour != "local" {
-		obj["detour"] = detour
-	}
-	if p.Port != 0 && p.Port != 53 {
-		obj["server_port"] = p.Port
-	}
-	return option.DNSServerOptions{
-		Type:    p.Scheme,
-		Tag:     tag,
-		Options: obj,
-	}
-}
+// func newDNSServer(tag, address, resolver string, strategy option.DomainStrategy, detour string) option.DNSServerOptions {
+// 	p, err := ParseDNSAddr(address)
+// 	fmt.Println("[newDNSServer] !!! \n\n\n\n", p, "\n\n\n\n !!! [newDNSServer]")
+// 	if err != nil {
+// 		return legacyDNSServer(tag, address, resolver, strategy, detour)
+// 	}
+// 	obj := map[string]any{}
+// 	if p.Host != "" {
+// 		obj["server"] = p.Host
+// 	}
+// 	if resolver != "" || strategy != 0 {
+// 		if resolver == "" {
+// 			resolver = DNSLocalTag
+// 		}
+// 		dr := map[string]any{"server": resolver}
+// 		if strategy != 0 {
+// 			dr["strategy"] = strategy
+// 		}
+// 		obj["domain_resolver"] = dr
+// 	}
+// 	if detour != "" && detour != "direct" && detour != "dns-trick-direct" && detour != "dns-direct" && detour != "local" {
+// 		obj["detour"] = detour
+// 	}
+// 	if p.Port != 0 && p.Port != 53 {
+// 		obj["server_port"] = p.Port
+// 	}
+// 	return option.DNSServerOptions{
+// 		Type:    p.Scheme,
+// 		Tag:     tag,
+// 		Options: obj,
+// 	}
+// }
 
 func newRemoteRuleSet(tag, url string) option.RuleSet {
 	return option.RuleSet{
@@ -862,7 +865,7 @@ func newRemoteRuleSet(tag, url string) option.RuleSet {
 		RemoteOptions: option.RemoteRuleSet{
 			URL:            url,
 			UpdateInterval: badoption.Duration(5 * 24 * time.Hour),
-			DownloadDetour:  OutboundSelectTag,
+			DownloadDetour: OutboundSelectTag,
 		},
 	}
 }
