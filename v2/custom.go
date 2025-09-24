@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"reflect"
 	"time"
+	"unsafe"
 
 	"github.com/Darkmen203/rostovvpn-core/bridge"
 	"github.com/Darkmen203/rostovvpn-core/config"
@@ -16,28 +19,25 @@ import (
 
 	"github.com/sagernet/sing-box/option"
 	singjson "github.com/sagernet/sing/common/json"
+
+	"github.com/sagernet/sing-box/adapter"
+	"github.com/sagernet/sing/service"
 )
 
 var (
-	Box              *CoreService
+	Box              *libbox.BoxService
 	RostovVPNOptions *config.RostovVPNOptions
 	activeConfigPath string
 	coreLogFactory   log.Factory
 	useFlutterBridge bool = true
-	oldCommandServer *CommandServer
 )
-
-func startCommandServer() error {
-	// размер буфера логов нам не нужен — оставим заглушку
-	oldCommandServer = NewCommandServer(2048)
-	return oldCommandServer.Start()
-}
 
 func StopAndAlert(msgType pb.MessageType, message string) {
 	SetCoreStatus(pb.CoreState_STOPPED, msgType, message)
 	config.DeactivateTunnelService()
 	if oldCommandServer != nil {
 		oldCommandServer.SetService(nil)
+
 	}
 	if Box != nil {
 		Box.Close()
@@ -99,7 +99,7 @@ func StartService(in *pb.StartRequest) (*pb.CoreInfoResponse, error) {
 	}
 	Log(pb.LogLevel_DEBUG, pb.LogType_CORE, "Parsing Config")
 
-	parsedContent, err := parseOptionsStrict(content)
+	parsedContent, err := readOptions(content)
 	Log(pb.LogLevel_DEBUG, pb.LogType_CORE, "Parsed")
 
 	if err != nil {
@@ -120,19 +120,6 @@ func StartService(in *pb.StartRequest) (*pb.CoreInfoResponse, error) {
 			StopAndAlert(pb.MessageType_UNEXPECTED_ERROR, err.Error())
 			return resp, err
 		}
-
-		// raw, err := json.Marshal(parsedContent_tmp)
-		// if err != nil {
-		// 	resp := SetCoreStatus(pb.CoreState_STOPPED, pb.MessageType_ERROR_BUILDING_CONFIG, err.Error())
-
-		// 	return resp, err
-		// }
-
-		// parsed, err := config.ParseConfigContent(string(raw), true, RostovVPNOptions, false)
-		// if err != nil {
-		// 	return parsed, fmt.Errorf("failed to reparse config via registry JSON: %w", err)
-		// }
-
 		parsedContent = *parsedContent_tmp
 	}
 	Log(pb.LogLevel_DEBUG, pb.LogType_CORE, "Saving config")
@@ -165,7 +152,8 @@ func StartService(in *pb.StartRequest) (*pb.CoreInfoResponse, error) {
 		<-time.After(250 * time.Millisecond)
 	}
 
-	if err = instance.Run(); err != nil {
+	err = instance.Start()
+	if err != nil {
 		Log(pb.LogLevel_FATAL, pb.LogType_CORE, err.Error())
 		resp := SetCoreStatus(pb.CoreState_STOPPED, pb.MessageType_START_SERVICE, err.Error())
 		StopAndAlert(pb.MessageType_UNEXPECTED_ERROR, err.Error())
@@ -173,7 +161,12 @@ func StartService(in *pb.StartRequest) (*pb.CoreInfoResponse, error) {
 	}
 	Box = instance
 	if in.EnableOldCommandServer {
-		oldCommandServer.SetService(Box) // если тут жёсткий тип *libbox.BoxService — см. примечание ниже
+		if primeClashServerAfterStart(Box, int(RostovVPNOptions.ClashApiPort)) {
+			Log(pb.LogLevel_INFO, pb.LogType_CORE, "Binding CommandServer to BoxService")
+			safeSetCommandService(oldCommandServer, Box)
+		} else {
+			Log(pb.LogLevel_WARNING, pb.LogType_CORE, "Clash API not available or wrong type; skipping CommandServer.SetService")
+		}
 	}
 
 	resp := SetCoreStatus(pb.CoreState_STARTED, pb.MessageType_EMPTY, "")
@@ -311,6 +304,7 @@ func Stop() (*pb.CoreInfoResponse, error) {
 	config.DeactivateTunnelService()
 	if oldCommandServer != nil {
 		oldCommandServer.SetService(nil)
+
 	}
 
 	err := Box.Close()
@@ -374,4 +368,74 @@ func Restart(in *pb.StartRequest) (*pb.CoreInfoResponse, error) {
 	libbox.SetMemoryLimit(!in.DisableMemoryLimit)
 	resp, gErr := StartService(in)
 	return resp, gErr
+}
+
+// безопасный вызов SetService: либа не уронит процесс
+func safeSetCommandService(cmd *libbox.CommandServer, svc *libbox.BoxService) {
+	defer func() { _ = recover() }()
+	cmd.SetService(svc)
+}
+
+// простая проверка, слушает ли Clash API порт
+func probeClashTCP(addr string, timeout time.Duration) bool {
+	d := net.Dialer{Timeout: timeout}
+	c, err := d.Dial("tcp", addr)
+	if err != nil {
+		return false
+	}
+	_ = c.Close()
+	return true
+}
+
+// после svc.Start(): подождём ClashServer в ctx с ретраями и логом
+func primeClashServerAfterStart(svc *libbox.BoxService, port int) bool {
+	rv := reflect.ValueOf(svc).Elem()
+
+	// 1) ctx: читаем приватное поле через unsafe
+	ctxField := rv.FieldByName("ctx")
+	if !ctxField.IsValid() {
+		Log(pb.LogLevel_WARNING, pb.LogType_CORE, "BoxService has no ctx field")
+		return false
+	}
+	// достаём значение приватного поля
+	ctxPtr := unsafe.Pointer(ctxField.UnsafeAddr())
+	ctxVal := reflect.NewAt(ctxField.Type(), ctxPtr).Elem()
+	ctxIface := ctxVal.Interface()
+	ctx, ok := ctxIface.(context.Context)
+	if !ok || ctx == nil {
+		Log(pb.LogLevel_WARNING, pb.LogType_CORE, "BoxService ctx invalid")
+		return false
+	}
+
+	// 2) ждём регистрацию ClashServer (до ~1.5 сек)
+	var cs adapter.ClashServer
+	for i := 0; i < 15; i++ {
+		func() { defer func() { _ = recover() }(); cs = service.FromContext[adapter.ClashServer](ctx) }()
+		if cs != nil {
+			Log(pb.LogLevel_DEBUG, pb.LogType_CORE, fmt.Sprintf("ClashServer in ctx type=%T", cs))
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// 3) параллельно проверим, слушается ли TCP порт
+	host := fmt.Sprintf("127.0.0.1:%d", port)
+	if probeClashTCP(host, 200*time.Millisecond) {
+		Log(pb.LogLevel_DEBUG, pb.LogType_CORE, "Clash API TCP is listening at "+host)
+	} else {
+		Log(pb.LogLevel_WARNING, pb.LogType_CORE, "Clash API TCP is NOT listening at "+host)
+	}
+
+	if cs == nil {
+		return false
+	}
+
+	// 4) прописываем приватное поле clashServer через unsafe
+	clashField := rv.FieldByName("clashServer")
+	if !clashField.IsValid() {
+		return false
+	}
+	clashPtr := unsafe.Pointer(clashField.UnsafeAddr())
+	reflect.NewAt(clashField.Type(), clashPtr).Elem().Set(reflect.ValueOf(cs))
+	return true
 }

@@ -1,3 +1,4 @@
+//go:build legacy
 package v2
 
 import (

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -166,15 +165,11 @@ func extractRefreshInterval(header http.Header, bodyStr string) (int, error) {
 }
 
 func buildConfig(configContent string, options config.RostovVPNOptions) (string, error) {
-
 	parsedContent, err := config.ParseConfigContent(configContent, true, &options, false)
-	fmt.Println("[standalone.buildConfig] !!! [ParseConfigContent] parsedContent= \n", parsedContent, "\n !!! [standalone.buildConfig]")
 	if err != nil {
 		return "", fmt.Errorf("failed to parse config content: %w", err)
 	}
-
 	singconfigs, err := readConfigBytes([]byte(parsedContent))
-	// fmt.Print("\n[config.buildConfig] !!! singconfigs= \n", singconfigs, ",\n  !!! [config.buildConfig] \n")
 	if err != nil {
 		return "", err
 	}
@@ -189,65 +184,20 @@ func buildConfig(configContent string, options config.RostovVPNOptions) (string,
 		finalconfig.Log.Output = ""
 	}
 
-	// Уважать уже заданный experimental.clash_api; подставлять дефолты только если пусто
-	if finalconfig.Experimental != nil && finalconfig.Experimental.ClashAPI != nil {
-		ca := finalconfig.Experimental.ClashAPI
-		if ca.ExternalUI == "" {
-			ca.ExternalUI = "webui"
-		}
-		if ca.ExternalController == "" {
-			host := "127.0.0.1"
-			if options.AllowConnectionFromLAN {
-				host = "0.0.0.0"
-			}
-			port := options.ClashApiPort
-			if port == 0 {
-				port = 16756
-			}
-			ca.ExternalController = fmt.Sprintf("%s:%d", host, port)
-		}
-		if ca.Secret == "" {
-			fmt.Print("[standalone.buildConfig] !!!", options.ClashApiSecret, " !!! [standalone.buildConfig]")
-			if options.ClashApiSecret == "" {
-				options.ClashApiSecret = generateRandomString(16) // или твоя функция
-			}
-			ca.Secret = options.ClashApiSecret
-		}
-		// Печатаем URL без хардкода 6756
-		host, port, _ := net.SplitHostPort(ca.ExternalController)
-		if host == "" {
-			host = "127.0.0.1"
-		}
-		fmt.Printf("Open http://%s:%s/ui/?secret=%s in your browser\n", host, port, ca.Secret)
+	finalconfig.Experimental.ClashAPI.ExternalUI = "webui"
+	if options.AllowConnectionFromLAN {
+		finalconfig.Experimental.ClashAPI.ExternalController = "0.0.0.0:6756"
+	} else {
+		finalconfig.Experimental.ClashAPI.ExternalController = "127.0.0.1:6756"
 	}
+
+	fmt.Printf("Open http://localhost:6756/ui/?secret=%s in your browser\n", finalconfig.Experimental.ClashAPI.Secret)
 
 	if err := Setup("./", "./", "./tmp", 0, true); err != nil {
 		return "", fmt.Errorf("failed to set up global configuration: %w", err)
 	}
 
 	configStr, err := config.ToJson(*finalconfig)
-
-	// --- DEBUG: показать DNS-сервера и кусок финального конфига ---
-	fmt.Println("---- FINAL DNS servers ----")
-	var inspect struct {
-		DNS struct {
-			Servers []map[string]any `json:"servers"`
-		} `json:"dns"`
-	}
-	_ = json.Unmarshal([]byte(configStr), &inspect)
-	for i, s := range inspect.DNS.Servers {
-		fmt.Printf("[%d] tag=%v type=%v address=%v detour=%v resolver=%v\n",
-			i, s["tag"], s["type"], s["address"], s["detour"], s["address_resolver"])
-	}
-	fmt.Println("---- FINAL (first 2KB) ----")
-	if len(configStr) > 2048 {
-		fmt.Println(configStr[:2048])
-	} else {
-		fmt.Println(configStr)
-	}
-	fmt.Println("---- /FINAL ----")
-	// --- /DEBUG ---
-
 	if err != nil {
 		return "", fmt.Errorf("failed to convert config to JSON: %w", err)
 	}
@@ -323,13 +273,6 @@ func ReadRostovVPNOptionsAt(path string) (*config.RostovVPNOptions, error) {
 			// Эвристика: если хоть что-то «живое» проставлено — считаем валидным.
 			if opt.LogLevel != "" || opt.InboundOptions.MixedPort != 0 || opt.Region != "" ||
 				opt.DNSOptions.RemoteDnsAddress != "" || opt.RouteOptions.BypassLAN {
-				// Разобрать возможные вложенные warp-конфиги-строки
-				if opt.Warp.WireguardConfigStr != "" {
-					_ = json.Unmarshal([]byte(opt.Warp.WireguardConfigStr), &opt.Warp.WireguardConfig)
-				}
-				if opt.Warp2.WireguardConfigStr != "" {
-					_ = json.Unmarshal([]byte(opt.Warp2.WireguardConfigStr), &opt.Warp2.WireguardConfig)
-				}
 				return &opt, nil
 			}
 		}

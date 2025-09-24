@@ -10,6 +10,7 @@ import (
 	"github.com/Darkmen203/rostovvpn-core/config"
 	"golang.org/x/net/proxy"
 
+	"github.com/sagernet/sing-box/experimental/libbox"
 	"github.com/sagernet/sing-box/option"
 )
 
@@ -58,24 +59,24 @@ func RunInstance(rostovVPNSettings *config.RostovVPNOptions, singconfig *option.
 	if err != nil {
 		return nil, err
 	}
-	if err = instance.Run(); err != nil {
+	if err = instance.Start(); err != nil {
 		return nil, err
 	}
 	<-time.After(250 * time.Millisecond)
-	hservice := &RostovVPNService{core: instance, ListenPort: rostovVPNSettings.InboundOptions.MixedPort}
+	hservice := &RostovVPNService{libbox: instance, ListenPort: rostovVPNSettings.InboundOptions.MixedPort}
 	hservice.PingCloudflare()
 	return hservice, nil
 }
 
 type RostovVPNService struct {
-	core       *CoreService
+	libbox     *libbox.BoxService
 	ListenPort uint16
 }
 
 // dialer, err := s.libbox.GetInstance().Router().Dialer(context.Background())
 
 func (s *RostovVPNService) Close() error {
-	return s.core.Close()
+	return s.libbox.Close()
 }
 
 func (s *RostovVPNService) GetContent(url string) (string, error) {

@@ -99,6 +99,7 @@ func restart(configPath *C.char, disableMemoryLimit bool) (CErr *C.char) {
 
 //export startCommandClient
 func startCommandClient(command C.int, port C.longlong) *C.char {
+	fmt.Println("[export startCommandClient func startCommandClient] !!! port=\n", port, "\n !!! [export startCommandClient func startCommandClient]")
 	err := v2.StartCommand(int32(command), int64(port))
 	return emptyOrErrorC(err)
 }
@@ -121,9 +122,14 @@ func selectOutbound(groupTag *C.char, outboundTag *C.char) (CErr *C.char) {
 
 //export urlTest
 func urlTest(groupTag *C.char) (CErr *C.char) {
+	fmt.Println("[export urlTest func urlTest] !!! groupTag=\n", groupTag, "\n !!! [export urlTest func urlTest]")
+
 	_, err := v2.UrlTest(&pb.UrlTestRequest{
 		GroupTag: C.GoString(groupTag),
 	})
+
+	println("[custom.urlTest] !!! C.GoString(groupTag)=\n", C.GoString(groupTag), "\n !!! [custom.urlTest]")
+	println("[custom.urlTest] !!! v2.UrlTest(&pb.UrlTestRequest{}=\n", err, "\n !!! [custom.urlTest]")
 
 	return emptyOrErrorC(err)
 }

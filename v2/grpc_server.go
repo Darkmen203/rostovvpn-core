@@ -4,16 +4,12 @@ package v2
 #include "stdint.h"
 */
 import (
-	"context"
 	"log"
 	"net"
 
-	"github.com/sagernet/sing-box"
-	"github.com/sagernet/sing-box/adapter"
 
 	"github.com/Darkmen203/rostovvpn-core/extension"
 	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
-	"github.com/sagernet/sing-box/experimental/clashapi"
 
 	"google.golang.org/grpc"
 )
@@ -24,12 +20,6 @@ type HelloService struct {
 
 type CoreService struct {
 	pb.UnimplementedCoreServer
-
-	ctx         context.Context
-	cancel      context.CancelFunc
-	instance    *box.Box
-	urlHistory  adapter.URLTestHistoryStorage
-	clashServer *clashapi.Server
 }
 
 type TunnelService struct {
