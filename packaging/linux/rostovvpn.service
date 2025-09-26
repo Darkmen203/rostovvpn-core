@@ -1,0 +1,18 @@
+[Unit]
+Description=RostovVPN Core (TUN)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=rostovvpn
+Group=rostovvpn
+ExecStart=/usr/local/bin/rvpncli --action start --enable-tun --mtu 1450 --config /etc/rostovvpn/config.json
+ExecStop=/usr/local/bin/rvpncli --action stop --config /etc/rostovvpn/config.json
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+NoNewPrivileges=true
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

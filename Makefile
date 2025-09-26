@@ -4,6 +4,9 @@ BASENAME=$(PRODUCT_NAME)
 BINDIR=bin
 LIBNAME=$(PRODUCT_NAME)
 CLINAME=RostovVPNCli
+VPNCLI_NAME=rvpncli
+WIN_HELPER_NAME=rostovvpn-helper
+MAC_HELPER_NAME=rostovvpn-helper
 
 BRANCH=$(shell git branch --show-current)
 VERSION=$(shell git describe --tags || echo "unknown version")
@@ -99,6 +102,34 @@ clean:
 
 
 
+# ---- VPN CLI + platform helpers (для TUN/“VPN-сервис”) ----------------------
+
+.PHONY: vpncli
+vpncli: ## собрать кроссплатформенный CLI (rvpncli)
+	mkdir -p $(BINDIR)
+	GOOS=$$(go env GOOS) GOARCH=$$(go env GOARCH) go build -ldflags "-s -w" -trimpath -tags $(TAGS) \
+		-o $(BINDIR)/$(VPNCLI_NAME) ./cmd/rvpncli
+	@echo "built $(BINDIR)/$(VPNCLI_NAME)"
+
+.PHONY: win-helper
+win-helper: ## собрать Windows helper (elevated) для включения TUN (UAC)
+	mkdir -p $(BINDIR)/windows
+	GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc \
+		go build -ldflags "-s -w -H=windowsgui" -trimpath -tags $(TAGS) \
+		-o $(BINDIR)/windows/$(WIN_HELPER_NAME).exe ./windows/helper
+	@echo "built $(BINDIR)/windows/$(WIN_HELPER_NAME).exe"
+	@echo "NOTE: приложите манифест windows/helper/$(WIN_HELPER_NAME).exe.manifest в инсталлятор"
+
+.PHONY: mac-helper
+mac-helper: ## собрать macOS helper (LaunchDaemon) для start/stop TUN
+	mkdir -p $(BINDIR)/macos
+	GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w" -trimpath -tags $(TAGS) \
+		-o $(BINDIR)/macos/$(MAC_HELPER_NAME) ./packaging/macos/helper
+	@echo "built $(BINDIR)/macos/$(MAC_HELPER_NAME)"
+
+.PHONY: desktop
+desktop: vpncli win-helper mac-helper ## собрать rvpncli + helpers
+	@echo "desktop helpers built: $(BINDIR)/$(VPNCLI_NAME), $(BINDIR)/windows/$(WIN_HELPER_NAME).exe, $(BINDIR)/macos/$(MAC_HELPER_NAME)"
 
 release: # Create a new tag for release.	
 	@bash -c '.github/change_version.sh'

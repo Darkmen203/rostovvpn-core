@@ -382,6 +382,10 @@ func setInbound(options *option.Options, opt *RostovVPNOptions) {
 	if opt.EnableTunService {
 		ActivateTunnelService(*opt)
 	} else if opt.EnableTun {
+		// безопасный MTU для TUN по умолчанию
+		if opt.MTU == 0 || opt.MTU > 2000 {
+			opt.MTU = 1450
+		}
 		addressList := badoption.Listable[netip.Prefix]{}
 		switch opt.IPv6Mode {
 		case option.DomainStrategy(dns.DomainStrategyUseIPv4):

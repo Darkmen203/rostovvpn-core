@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.rostovvpn.helper</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/libexec/rostovvpn-helper</string>
+    <string>--socket</string>
+    <string>/var/run/rostovvpn.sock</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>UserName</key><string>root</string>
+  <key>StandardErrorPath</key><string>/var/log/rostovvpn-helper.err</string>
+  <key>StandardOutPath</key><string>/var/log/rostovvpn-helper.out</string>
+</dict>
+</plist>

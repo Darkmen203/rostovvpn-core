@@ -12,8 +12,7 @@ on:
         type: string
         default: "dev"
 env:
-    REGISTRY_IMAGE: ghcr.io/darkmen203/rostovvpn-core
-
+  REGISTRY_IMAGE: ghcr.io/darkmen203/rostovvpn-core
 
 jobs:
   update_wrt_hash:
@@ -30,39 +29,149 @@ jobs:
           IFS="." read -r -a VERSION_ARRAY <<< "${github_ref_name#v}"
           VERSION_STR="${VERSION_ARRAY[0]}.${VERSION_ARRAY[1]}.${VERSION_ARRAY[2]}"
           sed -i "s|PKG_VERSION:=.*|PKG_VERSION:=${VERSION_STR}|g" wrt/Makefile
-          sed -i "s|PKG_HASH:=.*|PKG_HASH:=${ROSTOVVPN_CORE_WRT_HASH}|g" wrt/Makefile 
+          sed -i "s|PKG_HASH:=.*|PKG_HASH:=${ROSTOVVPN_CORE_WRT_HASH}|g" wrt/Makefile
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
-            commit_message: "Update WRT package HASH."
-            branch: main
-            # push_options: --force
+          commit_message: "Update WRT package HASH."
+          branch: main
+          # push_options: --force
   build:
     permissions: write-all
     strategy:
       fail-fast: false
       matrix:
         job:
-          - { name: 'rostovvpn-core-android', os: 'ubuntu-latest', target: 'android' }
-          - { name: 'rostovvpn-core-linux-amd64', os: 'ubuntu-22.04', target: 'linux-amd64' }
-          - { name: "rostovvpn-core-windows-amd64", os: 'ubuntu-latest', target: 'windows-amd64', aarch: 'x64' }
-          - { name: "rostovvpn-core-macos-universal", os: 'macos-13', target: 'macos-universal' }
+          - {
+              name: "rostovvpn-core-android",
+              os: "ubuntu-latest",
+              target: "android",
+            }
+          - {
+              name: "rostovvpn-core-linux-amd64",
+              os: "ubuntu-22.04",
+              target: "linux-amd64",
+            }
+          - {
+              name: "rostovvpn-core-windows-amd64",
+              os: "ubuntu-latest",
+              target: "windows-amd64",
+              aarch: "x64",
+            }
+          - {
+              name: "rostovvpn-core-macos-universal",
+              os: "macos-13",
+              target: "macos-universal",
+            }
           - { name: "rostovvpn-core-ios", os: "macos-13", target: "ios" }
           # linux custom
-          - {name: rostovvpn-cli-linux-amd64, goos: linux, goarch: amd64, goamd64: v1, target: 'linux-custom', os: 'ubuntu-22.04'}
-          - {name: rostovvpn-cli-linux-amd64-v3, goos: linux, goarch: amd64, goamd64: v3, target: 'linux-custom', os: 'ubuntu-22.04'}
-          - {name: rostovvpn-cli-linux-386, goos: linux, goarch: 386, target: 'linux-custom', os: 'ubuntu-22.04'}
-          - {name: rostovvpn-cli-linux-arm64, goos: linux, goarch: arm64, target: 'linux-custom', os: 'ubuntu-22.04'}
-          - {name: rostovvpn-cli-linux-armv5, goos: linux, goarch: arm, goarm: 5, target: 'linux-custom', os: 'ubuntu-22.04'}
-          - {name: rostovvpn-cli-linux-armv6, goos: linux, goarch: arm, goarm: 6, target: 'linux-custom', os: 'ubuntu-22.04'}
-          - {name: rostovvpn-cli-linux-armv7, goos: linux, goarch: arm, goarm: 7, target: 'linux-custom', os: 'ubuntu-22.04'}
-          - {name: rostovvpn-cli-linux-mips-softfloat, goos: linux, goarch: mips, gomips: softfloat, target: 'linux-custom', os: 'ubuntu-22.04'}
-          - {name: rostovvpn-cli-linux-mips-hardfloat, goos: linux, goarch: mips, gomips: hardfloat, target: 'linux-custom', os: 'ubuntu-22.04'}
-          - {name: rostovvpn-cli-linux-mipsel-softfloat, goos: linux, goarch: mipsle, gomips: softfloat, target: 'linux-custom', os: 'ubuntu-22.04'}
-          - {name: rostovvpn-cli-linux-mipsel-hardfloat, goos: linux, goarch: mipsle, gomips: hardfloat, target: 'linux-custom', os: 'ubuntu-22.04'}
-          - {name: rostovvpn-cli-linux-mips64, goos: linux, goarch: mips64, target: 'linux-custom', os: 'ubuntu-22.04'}
-          - {name: rostovvpn-cli-linux-mips64el, goos: linux, goarch: mips64le, target: 'linux-custom', os: 'ubuntu-22.04'}
-          - {name: rostovvpn-cli-linux-s390x, goos: linux, goarch: s390x, target: 'linux-custom', os: 'ubuntu-22.04'}
-    
+          - {
+              name: rostovvpn-cli-linux-amd64,
+              goos: linux,
+              goarch: amd64,
+              goamd64: v1,
+              target: "linux-custom",
+              os: "ubuntu-22.04",
+            }
+          - {
+              name: rostovvpn-cli-linux-amd64-v3,
+              goos: linux,
+              goarch: amd64,
+              goamd64: v3,
+              target: "linux-custom",
+              os: "ubuntu-22.04",
+            }
+          - {
+              name: rostovvpn-cli-linux-386,
+              goos: linux,
+              goarch: 386,
+              target: "linux-custom",
+              os: "ubuntu-22.04",
+            }
+          - {
+              name: rostovvpn-cli-linux-arm64,
+              goos: linux,
+              goarch: arm64,
+              target: "linux-custom",
+              os: "ubuntu-22.04",
+            }
+          - {
+              name: rostovvpn-cli-linux-armv5,
+              goos: linux,
+              goarch: arm,
+              goarm: 5,
+              target: "linux-custom",
+              os: "ubuntu-22.04",
+            }
+          - {
+              name: rostovvpn-cli-linux-armv6,
+              goos: linux,
+              goarch: arm,
+              goarm: 6,
+              target: "linux-custom",
+              os: "ubuntu-22.04",
+            }
+          - {
+              name: rostovvpn-cli-linux-armv7,
+              goos: linux,
+              goarch: arm,
+              goarm: 7,
+              target: "linux-custom",
+              os: "ubuntu-22.04",
+            }
+          - {
+              name: rostovvpn-cli-linux-mips-softfloat,
+              goos: linux,
+              goarch: mips,
+              gomips: softfloat,
+              target: "linux-custom",
+              os: "ubuntu-22.04",
+            }
+          - {
+              name: rostovvpn-cli-linux-mips-hardfloat,
+              goos: linux,
+              goarch: mips,
+              gomips: hardfloat,
+              target: "linux-custom",
+              os: "ubuntu-22.04",
+            }
+          - {
+              name: rostovvpn-cli-linux-mipsel-softfloat,
+              goos: linux,
+              goarch: mipsle,
+              gomips: softfloat,
+              target: "linux-custom",
+              os: "ubuntu-22.04",
+            }
+          - {
+              name: rostovvpn-cli-linux-mipsel-hardfloat,
+              goos: linux,
+              goarch: mipsle,
+              gomips: hardfloat,
+              target: "linux-custom",
+              os: "ubuntu-22.04",
+            }
+          - {
+              name: rostovvpn-cli-linux-mips64,
+              goos: linux,
+              goarch: mips64,
+              target: "linux-custom",
+              os: "ubuntu-22.04",
+            }
+          - {
+              name: rostovvpn-cli-linux-mips64el,
+              goos: linux,
+              goarch: mips64le,
+              target: "linux-custom",
+              os: "ubuntu-22.04",
+            }
+          - {
+              name: rostovvpn-cli-linux-s390x,
+              goos: linux,
+              goarch: s390x,
+              target: "linux-custom",
+              os: "ubuntu-22.04",
+            }
+
     runs-on: ${{ matrix.job.os }}
     env:
       GOOS: ${{ matrix.job.goos }}
@@ -79,15 +188,15 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: 'go.mod'
+          go-version-file: "go.mod"
           check-latest: false
 
       - name: Setup Java
         if: startsWith(matrix.job.target,'android')
         uses: actions/setup-java@v3
         with:
-          distribution: 'zulu'
-          java-version: '17'
+          distribution: "zulu"
+          java-version: "17"
 
       - name: Setup NDK
         if: startsWith(matrix.job.target,'android')
@@ -113,24 +222,112 @@ jobs:
         run: |
           make -j$(($(nproc) + 1)) ${{ matrix.job.target }}
 
+      - name: Build VPN CLI / Helpers (per-platform)
+        run: |
+          set -eux
+          case "${{ matrix.job.target }}" in
+            windows-*)
+              # rvpncli.exe (кросс под Windows)
+              GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -trimpath -tags "$(echo $(grep ^TAGS= Makefile | cut -d= -f2))" -o bin/rvpncli.exe ./cmd/rvpncli
+              # Elevated helper с UAC
+              make win-helper
+              ;;
+            macos-*)
+              # rvpncli (darwin)
+              GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w" -trimpath -tags "$(echo $(grep ^TAGS= Makefile | cut -d= -f2 | cut -d, -f1-)),$(echo $(grep ^IOS_ADD_TAGS= Makefile | cut -d= -f2))" -o bin/rvpncli ./cmd/rvpncli
+              # LaunchDaemon helper
+              make mac-helper
+              ;;
+            linux-*)
+              # rvpncli (linux, под текущую GOARCH из matrix)
+              GOOS=${GOOS:-linux} GOARCH=${GOARCH:-amd64} go build -ldflags "-s -w" -trimpath -tags "$(echo $(grep ^TAGS= Makefile | cut -d= -f2))" -o bin/rvpncli ./cmd/rvpncli
+              ;;
+            *)
+              echo "skip extra helpers for ${{ matrix.job.target }}"
+              ;;
+          esac
+
       - name: zip
         run: |
-          tree 
-          rm -f /*.h */*.h
-          rm ./rostovvpn-libcore*sources* ||echo "no source"
-          rm ./rostovvpn-libcore-macos-a*.dylib || echo "no macos arm and amd"
-          files=$(ls | grep -E '^(libcore\.(dll|so|dylib|aar)|webui|Libcore.xcframework|lib|RostovVPNCli(\.exe)?)$')
-          echo tar -czvf ${{ matrix.job.name }}.tar.gz  $files
-          tar -czvf ${{ matrix.job.name }}.tar.gz  $files
-          
+          set -eux
+          tree || true
+          # чуть подчистим мусор
+          rm -f /*.h */*.h || true
+          rm -f ./rostovvpn-libcore*sources* || true
+          rm -f ./rostovvpn-libcore-macos-a*.dylib || true
+
+          TARGET="${{ matrix.job.target }}"
+          NAME="${{ matrix.job.name }}"
+
+          STAGE="_stage"
+          rm -rf "$STAGE"; mkdir -p "$STAGE"
+
+          case "$TARGET" in
+            windows-*)
+              # Windows: DLL + оба CLI + elevated helper + webui
+              [ -f libcore.dll ] && cp -a libcore.dll "$STAGE/" || true
+              [ -f RostovVPNCli.exe ] && cp -a RostovVPNCli.exe "$STAGE/" || true
+              # rvpncli.exe могли собрать на шаге "Build VPN CLI / Helpers"
+              [ -f rvpncli.exe ] && cp -a rvpncli.exe "$STAGE/" || true
+              if [ -d windows ]; then
+                mkdir -p "$STAGE/windows"
+                [ -f windows/rostovvpn-helper.exe ] && cp -a windows/rostovvpn-helper.exe "$STAGE/windows/" || true
+              fi
+              [ -d webui ] && cp -a webui "$STAGE/" || true
+              ;;
+
+            macos-*)
+              # macOS: универсальная dylib + оба CLI + mac helper + xcframework + webui
+              [ -f libcore.dylib ] && cp -a libcore.dylib "$STAGE/" || true
+              [ -f RostovVPNCli ] && cp -a RostovVPNCli "$STAGE/" || true
+              [ -f rvpncli ] && cp -a rvpncli "$STAGE/" || true
+              if [ -d macos ]; then
+                mkdir -p "$STAGE/macos"
+                [ -f macos/rostovvpn-helper ] && cp -a macos/rostovvpn-helper "$STAGE/macos/" || true
+              fi
+              [ -d Libcore.xcframework ] && cp -a Libcore.xcframework "$STAGE/" || true
+              [ -d webui ] && cp -a webui "$STAGE/" || true
+              chmod +x "$STAGE"/RostovVPNCli 2>/dev/null || true
+              chmod +x "$STAGE"/rvpncli 2>/dev/null || true
+              ;;
+
+            linux-*)
+              # Linux: so + lib/ + оба CLI + webui
+              [ -d lib ] && cp -a lib "$STAGE/" || true
+              [ -f libcore.so ] && cp -a libcore.so "$STAGE/" || true
+              [ -f RostovVPNCli ] && cp -a RostovVPNCli "$STAGE/" || true
+              [ -f rvpncli ] && cp -a rvpncli "$STAGE/" || true
+              [ -d webui ] && cp -a webui "$STAGE/" || true
+              chmod +x "$STAGE"/RostovVPNCli 2>/dev/null || true
+              chmod +x "$STAGE"/rvpncli 2>/dev/null || true
+              ;;
+
+            android*)
+              # Android: .aar как раньше
+              [ -f libcore.aar ] && cp -a libcore.aar "$STAGE/" || true
+              ;;
+
+            ios*)
+              # iOS: xcframework как раньше
+              [ -d Libcore.xcframework ] && cp -a Libcore.xcframework "$STAGE/" || true
+              ;;
+
+            *)
+              # дефолт: прежняя логика на всякий
+              files=$(ls | grep -E '^(libcore\.(dll|so|dylib|aar)|webui|Libcore.xcframework|lib|RostovVPNCli(\.exe)?)$') || true
+              for f in $files; do cp -a "$f" "$STAGE/"; done
+              ;;
+          esac
+
+          tar -czvf "${NAME}.tar.gz" -C "$STAGE" .
         working-directory: bin
+
       - uses: actions/upload-artifact@v4
         if: ${{ success() }}
         with:
           name: ${{ matrix.job.name }}
           path: bin/*.tar.gz
           retention-days: 1
-
 
   upload-prerelease:
     permissions: write-all
@@ -152,7 +349,7 @@ jobs:
         uses: 8Mi-Tech/delete-release-assets-action@main
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: 'draft'
+          tag: "draft"
           deleteOnlyFromDrafts: false
 
       - name: Create or Update Draft Release
@@ -162,8 +359,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: ./bin/*.tar.gz
-          name: 'draft'
-          tag_name: 'draft'
+          name: "draft"
+          tag_name: "draft"
           prerelease: true
 
   upload-release:
@@ -192,21 +389,11 @@ jobs:
 
           files: bin/*.tar.gz
 
-
-
-
-
-
-
-
-
-
-
   make-upload-docker:
     permissions: write-all
     if: ${{ inputs.channel=='prod' }}
     needs: [upload-release]
-    
+
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
@@ -297,7 +484,6 @@ jobs:
             -t "${{ env.REGISTRY_IMAGE }}:${{ inputs.tag-name   }}" \
             $(printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
       - name: Inspect image
-        
         run: |
           docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}:${{ env.LATEST }}
           docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}:${{ inputs.tag-name  }}
