@@ -4,6 +4,7 @@ package v2
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -240,6 +241,14 @@ var (
 // StartCommand: cmd — это КОД команды libbox (status/group/groupExpand/...), port — это DART SendPort.nativePort!
 // Здесь НЕ трогаем TCP-порт — коннект берёт на себя libbox.CommandClient внутри sing-box.
 func StartCommand(cmd int32, dartPort int64) error {
+	if coreLogFactory == nil {
+		factory, _ := log.New(log.Options{
+			DefaultWriter: os.Stdout,
+			BaseTime:      time.Now(),
+			Observable:    false,
+		})
+		coreLogFactory = factory
+	}
 	printLibboxCmdsOnce()
 	fmt.Println("[FFI] StartCommand: cmd=", cmd, " dartPort=", dartPort)
 	coreLogFactory.NewLogger("[FFI]").Info(
