@@ -5,10 +5,25 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"time"
 
 	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 	v2 "github.com/Darkmen203/rostovvpn-core/v2"
 )
+
+func stopFilePath() string {
+	// единое место stop-файла: %APPDATA%\RostovVPN\rvpncli.stop на Win,
+	// а на *nix — ~/.config/rostovvpn/rvpncli.stop (или рабочая директория core)
+	base := ""
+	if h, err := os.UserConfigDir(); err == nil && h != "" {
+		base = filepath.Join(h, "RostovVPN")
+	} else {
+		base = filepath.Join(os.TempDir(), "RostovVPN")
+	}
+	_ = os.MkdirAll(base, 0o755)
+	return filepath.Join(base, "rvpncli.stop")
+}
 
 func main() {
 	var cfgPath string
@@ -39,6 +54,9 @@ func main() {
 			EnableOldCommandServer: true,
 			DisableMemoryLimit:     false,
 		}
+
+		// Убираем возможный старый stop-файл
+		_ = os.Remove(stopFilePath())
 		// При старте проставляем глобальные опции:
 		// (В вашем BuildConfig они считываются из RostovVPNOptions)
 		// Если хотите, добавьте в v2.ChangeRostovVPNSettings ещё поля.
@@ -58,14 +76,30 @@ func main() {
 			log.Fatalf("start failed: %v", err)
 		}
 		// Блокируемся, чтобы процесс держал сервис (по желанию)
-		select {}
-
-	case "stop":
-		if _, err := v2.Stop(); err != nil {
-			log.Fatalf("stop failed: %v", err)
+		for {
+			time.Sleep(500 * time.Millisecond)
+			if _, err := os.Stat(stopFilePath()); err == nil {
+				// файл появился → останавливаем core и выходим
+				_, _ = v2.Stop()
+				_ = os.Remove(stopFilePath())
+				break
+			}
 		}
 
+	case "stop":
+		// Создаём stop-файл, чтобы «стартующий» rvpncli корректно остановил core и вышел
+		f, err := os.Create(stopFilePath())
+		if err == nil {
+			f.Close()
+		}
+		// на всякий случай (если кто-то держит core не через нашу блокировку)
+		_, _ = v2.Stop()
+
 	case "restart":
+		if cfgPath == "" {
+			log.Fatalf("missing --config")
+		}
+		_, _ = v2.Stop()
 		if _, err := v2.Restart(&pb.StartRequest{
 			ConfigPath:             cfgPath,
 			EnableOldCommandServer: true,
@@ -74,7 +108,6 @@ func main() {
 		}
 
 	default:
-		fmt.Println("unknown action:", action)
-		os.Exit(2)
+		log.Fatalf("unknown action: %s", action)
 	}
 }
