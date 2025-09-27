@@ -43,6 +43,7 @@ func InitRostovVPNService() error { return service_manager.StartServices() }
 
 func Setup(basePath, workingPath, tempPath string, statusPort int64, debug bool) error {
 	statusPropagationPort = statusPort
+	useFlutterBridge = statusPort != 0
 	tcpConn := runtime.GOOS == "windows" // TODO add TVOS
 	FixAndroidStack := runtime.GOOS == "android"
 	libboxOpts := libbox.SetupOptions{

@@ -1,13 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/Darkmen203/rostovvpn-core/config"
 	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 	v2 "github.com/Darkmen203/rostovvpn-core/v2"
 )
@@ -23,6 +25,66 @@ func stopFilePath() string {
 	}
 	_ = os.MkdirAll(base, 0o755)
 	return filepath.Join(base, "rvpncli.stop")
+}
+
+func cleanConfigPath(path string) string {
+	path = strings.TrimSpace(path)
+	path = strings.Trim(path, "\"")
+	path = strings.Trim(path, "'")
+	return path
+}
+
+func prepareEnvironment(cfgPath string) (string, string, string, string, error) {
+	absCfgPath, err := filepath.Abs(cleanConfigPath(cfgPath))
+	if err != nil {
+		return "", "", "", "", err
+	}
+	workingDir := filepath.Dir(absCfgPath)
+	if err := os.MkdirAll(workingDir, 0o755); err != nil {
+		return "", "", "", "", err
+	}
+	baseDir := filepath.Dir(workingDir)
+	if baseDir == "" || baseDir == "." {
+		baseDir = workingDir
+	}
+	if err := os.MkdirAll(baseDir, 0o755); err != nil {
+		return "", "", "", "", err
+	}
+	tempDir := filepath.Join(os.TempDir(), "RostovVPN")
+	if err := os.MkdirAll(tempDir, 0o755); err != nil {
+		return "", "", "", "", err
+	}
+	return absCfgPath, baseDir, workingDir, tempDir, nil
+}
+
+func loadSettingsJSON(workingDir string, enableTun, disableTun bool, mtu int, setSystemProxy bool) string {
+	prefsPath := filepath.Join(workingDir, "shared_preferences.json")
+	options, err := v2.ReadRostovVPNOptionsAt(prefsPath)
+	if err != nil {
+		log.Printf("warning: failed to read shared preferences: %v", err)
+	}
+	if options == nil {
+		options = config.DefaultRostovVPNOptions()
+	}
+	if enableTun {
+		options.InboundOptions.EnableTun = true
+		options.InboundOptions.EnableTunService = false
+		if mtu > 0 {
+			options.InboundOptions.MTU = uint32(mtu)
+		}
+		options.InboundOptions.SetSystemProxy = false
+	} else if disableTun {
+		options.InboundOptions.EnableTun = false
+		options.InboundOptions.SetSystemProxy = setSystemProxy
+	} else if setSystemProxy {
+		options.InboundOptions.SetSystemProxy = true
+	}
+	data, err := json.Marshal(options)
+	if err != nil {
+		log.Printf("warning: failed to encode settings: %v", err)
+		return ""
+	}
+	return string(data)
 }
 
 func main() {
@@ -44,33 +106,35 @@ func main() {
 	if cfgPath == "" {
 		log.Fatalf("missing --config")
 	}
+	if enableTun && disableTun {
+		log.Fatalf("cannot use --enable-tun and --disable-tun together")
+	}
 
 	// Меняем опции в рантайме через вашу API
 	// Для простоты используем существующие Start/Stop.
 	switch action {
 	case "start":
+		absCfg, baseDir, workingDir, tempDir, err := prepareEnvironment(cfgPath)
+		if err != nil {
+			log.Fatalf("prepare environment failed: %v", err)
+		}
+		if err := v2.Setup(baseDir, workingDir, tempDir, 0, false); err != nil {
+			log.Fatalf("setup failed: %v", err)
+		}
+		if settingsJSON := loadSettingsJSON(workingDir, enableTun, disableTun, mtu, setSystemProxy); settingsJSON != "" {
+			if _, err := v2.ChangeRostovVPNSettings(&pb.ChangeRostovVPNSettingsRequest{RostovvpnSettingsJson: settingsJSON}); err != nil {
+				log.Printf("change settings failed: %v", err)
+			}
+		}
+
 		req := &pb.StartRequest{
-			ConfigPath:             cfgPath,
+			ConfigPath:             absCfg,
 			EnableOldCommandServer: true,
 			DisableMemoryLimit:     false,
 		}
 
 		// Убираем возможный старый stop-файл
 		_ = os.Remove(stopFilePath())
-		// При старте проставляем глобальные опции:
-		// (В вашем BuildConfig они считываются из RostovVPNOptions)
-		// Если хотите, добавьте в v2.ChangeRostovVPNSettings ещё поля.
-		if enableTun {
-			// Минимально: установим флаг EnableTun в памяти.
-			json := fmt.Sprintf(`{"InboundOptions":{"EnableTun":true,"EnableTunService":false,"MTU":%d,"SetSystemProxy":false}}`, mtu)
-			_, _ = v2.ChangeRostovVPNSettings(&pb.ChangeRostovVPNSettingsRequest{RostovvpnSettingsJson: json})
-		} else if disableTun {
-			json := `{"InboundOptions":{"EnableTun":false}}`
-			_, _ = v2.ChangeRostovVPNSettings(&pb.ChangeRostovVPNSettingsRequest{RostovvpnSettingsJson: json})
-			// можно вернуть прокси, если нужно
-			json2 := fmt.Sprintf(`{"InboundOptions":{"SetSystemProxy":%v}}`, setSystemProxy)
-			_, _ = v2.ChangeRostovVPNSettings(&pb.ChangeRostovVPNSettingsRequest{RostovvpnSettingsJson: json2})
-		}
 
 		if _, err := v2.Start(req); err != nil {
 			log.Fatalf("start failed: %v", err)
@@ -96,12 +160,21 @@ func main() {
 		_, _ = v2.Stop()
 
 	case "restart":
-		if cfgPath == "" {
-			log.Fatalf("missing --config")
+		absCfg, baseDir, workingDir, tempDir, err := prepareEnvironment(cfgPath)
+		if err != nil {
+			log.Fatalf("prepare environment failed: %v", err)
+		}
+		if err := v2.Setup(baseDir, workingDir, tempDir, 0, false); err != nil {
+			log.Fatalf("setup failed: %v", err)
+		}
+		if settingsJSON := loadSettingsJSON(workingDir, enableTun, disableTun, mtu, setSystemProxy); settingsJSON != "" {
+			if _, err := v2.ChangeRostovVPNSettings(&pb.ChangeRostovVPNSettingsRequest{RostovvpnSettingsJson: settingsJSON}); err != nil {
+				log.Printf("change settings failed: %v", err)
+			}
 		}
 		_, _ = v2.Stop()
 		if _, err := v2.Restart(&pb.StartRequest{
-			ConfigPath:             cfgPath,
+			ConfigPath:             absCfg,
 			EnableOldCommandServer: true,
 		}); err != nil {
 			log.Fatalf("restart failed: %v", err)
