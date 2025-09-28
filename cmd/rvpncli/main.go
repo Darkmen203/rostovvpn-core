@@ -135,13 +135,13 @@ func main() {
 		if err != nil {
 			log.Fatalf("prepare environment failed: %v", err)
 		}
+
 		if err := v2.Setup(baseDir, workingDir, tempDir, 0, false); err != nil {
-			log.Fatalf("setup failed: %v", err)
+			log.Fatalf("[rvpncli] v2.Setup failed: %v", err)
 		}
 		
-		log.Printf("rvpncli start: baseCfg=%s, workingDir=%s", absCfg, workingDir)
+		log.Printf("[rvpncli] start: cfg=%s, workingDir=%s", absCfg, workingDir)
 
-		waitClashTCP() // <<< ждём 127.0.0.1:8964
 		if settingsJSON := loadSettingsJSON(workingDir, enableTun, disableTun, mtu, setSystemProxy); settingsJSON != "" {
 			if _, err := v2.ChangeRostovVPNSettings(&pb.ChangeRostovVPNSettingsRequest{RostovvpnSettingsJson: settingsJSON}); err != nil {
 				log.Printf("change settings failed: %v", err)
@@ -160,6 +160,9 @@ func main() {
 		if _, err := v2.Start(req); err != nil {
 			log.Fatalf("start failed: %v", err)
 		}
+
+		waitClashTCP()
+		
 		// Блокируемся, чтобы процесс держал сервис (по желанию)
 		for {
 			time.Sleep(500 * time.Millisecond)
