@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -87,6 +88,22 @@ func loadSettingsJSON(workingDir string, enableTun, disableTun bool, mtu int, se
 	return string(data)
 }
 
+func waitClashTCP() {
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		c, err := net.DialTimeout("tcp", "127.0.0.1:8964", 200*time.Millisecond)
+		if err == nil {
+			_ = c.Close()
+			return
+		}
+		if time.Now().After(deadline) {
+			log.Printf("warning: CommandServer not listening yet: %v", err)
+			return
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+}
+
 func main() {
 	var cfgPath string
 	var enableTun bool
@@ -121,6 +138,10 @@ func main() {
 		if err := v2.Setup(baseDir, workingDir, tempDir, 0, false); err != nil {
 			log.Fatalf("setup failed: %v", err)
 		}
+		
+		log.Printf("rvpncli start: baseCfg=%s, workingDir=%s", absCfg, workingDir)
+
+		waitClashTCP() // <<< ждём 127.0.0.1:8964
 		if settingsJSON := loadSettingsJSON(workingDir, enableTun, disableTun, mtu, setSystemProxy); settingsJSON != "" {
 			if _, err := v2.ChangeRostovVPNSettings(&pb.ChangeRostovVPNSettingsRequest{RostovvpnSettingsJson: settingsJSON}); err != nil {
 				log.Printf("change settings failed: %v", err)
@@ -167,6 +188,8 @@ func main() {
 		if err := v2.Setup(baseDir, workingDir, tempDir, 0, false); err != nil {
 			log.Fatalf("setup failed: %v", err)
 		}
+		waitClashTCP() // <<< ждём 127.0.0.1:8964
+
 		if settingsJSON := loadSettingsJSON(workingDir, enableTun, disableTun, mtu, setSystemProxy); settingsJSON != "" {
 			if _, err := v2.ChangeRostovVPNSettings(&pb.ChangeRostovVPNSettingsRequest{RostovvpnSettingsJson: settingsJSON}); err != nil {
 				log.Printf("change settings failed: %v", err)

@@ -1,4 +1,4 @@
-package v2
+﻿package v2
 
 import (
 	"context"
@@ -53,6 +53,8 @@ func Setup(basePath, workingPath, tempPath string, statusPort int64, debug bool)
 		IsTVOS:          tcpConn,
 		FixAndroidStack: FixAndroidStack,
 	}
+
+	log.Debug("v2.Setup setup: tcpConn=%s, libboxOpts=%s", tcpConn, libboxOpts)
 	libbox.Setup(&libboxOpts)
 	// пути
 	sWorkingPath = workingPath
