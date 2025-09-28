@@ -89,18 +89,19 @@ func loadSettingsJSON(workingDir string, enableTun, disableTun bool, mtu int, se
 }
 
 func waitClashTCP() {
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(10 * time.Second) // под Windows TUN + создание Wintun иногда дольше 3с
 	for {
 		c, err := net.DialTimeout("tcp", "127.0.0.1:8964", 200*time.Millisecond)
 		if err == nil {
 			_ = c.Close()
+			log.Printf("[rvpncli] CommandServer is listening at 127.0.0.1:8964")
 			return
 		}
 		if time.Now().After(deadline) {
-			log.Printf("warning: CommandServer not listening yet: %v", err)
+			log.Printf("[rvpncli] WARNING: CommandServer not listening. last err: %v", err)
 			return
 		}
-		time.Sleep(150 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 	}
 }
 
@@ -139,12 +140,13 @@ func main() {
 		if err := v2.Setup(baseDir, workingDir, tempDir, 0, false); err != nil {
 			log.Fatalf("[rvpncli] v2.Setup failed: %v", err)
 		}
-		
+
 		log.Printf("[rvpncli] start: cfg=%s, workingDir=%s", absCfg, workingDir)
 
 		if settingsJSON := loadSettingsJSON(workingDir, enableTun, disableTun, mtu, setSystemProxy); settingsJSON != "" {
+			log.Printf("[rvpncli] settingsJSON len=%d", len(settingsJSON))
 			if _, err := v2.ChangeRostovVPNSettings(&pb.ChangeRostovVPNSettingsRequest{RostovvpnSettingsJson: settingsJSON}); err != nil {
-				log.Printf("change settings failed: %v", err)
+				log.Printf("[rvpncli] change settings failed: %v", err)
 			}
 		}
 
@@ -160,9 +162,9 @@ func main() {
 		if _, err := v2.Start(req); err != nil {
 			log.Fatalf("start failed: %v", err)
 		}
-
+		log.Printf("[rvpncli] v2.Start OK, waiting CommandServer ...")
 		waitClashTCP()
-		
+
 		// Блокируемся, чтобы процесс держал сервис (по желанию)
 		for {
 			time.Sleep(500 * time.Millisecond)
