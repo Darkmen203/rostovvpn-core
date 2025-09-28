@@ -54,7 +54,10 @@ func Setup(basePath, workingPath, tempPath string, statusPort int64, debug bool)
 		FixAndroidStack: FixAndroidStack,
 	}
 
-	log.Debug("v2.Setup setup: tcpConn=%s, libboxOpts=%s", tcpConn, libboxOpts)
+	log.Debug(fmt.Sprintf(
+		"v2.Setup setup: tcpConn=%v, libboxOpts=%+v",
+		tcpConn, libboxOpts,
+	))
 	libbox.Setup(&libboxOpts)
 	// пути
 	sWorkingPath = workingPath
