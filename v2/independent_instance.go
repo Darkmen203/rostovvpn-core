@@ -59,8 +59,7 @@ func RunInstance(rostovVPNSettings *config.RostovVPNOptions, singconfig *option.
 	if err != nil {
 		return nil, err
 	}
-	err = instance.Start()
-	if err != nil {
+	if err = instance.Start(); err != nil {
 		return nil, err
 	}
 	<-time.After(250 * time.Millisecond)

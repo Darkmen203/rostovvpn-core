@@ -1,7 +1,8 @@
 package v2
 
 import (
-	"encoding/json"
+	"context"
+	"fmt"
 	"io"
 	"os"
 	"runtime"
@@ -10,11 +11,24 @@ import (
 
 	"github.com/Darkmen203/rostovvpn-core/v2/service_manager"
 
-	"github.com/sagernet/sing-box/experimental/libbox"
+	// sing-box core
 	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing-box/option"
+
+	// инфраструктура sing
 	E "github.com/sagernet/sing/common/exceptions"
 	singjson "github.com/sagernet/sing/common/json"
+	"github.com/sagernet/sing/service"
+	"github.com/sagernet/sing/service/filemanager"
+	"github.com/sagernet/sing/service/pause"
+
+	// urltest история — как в libbox
+	"github.com/sagernet/sing-box/common/urltest"
+	"github.com/sagernet/sing-box/experimental/libbox"
+
+	// IMPORTANT: use libbox context + sing/common/json to decode into typed option structs
+	// libbox "github.com/sagernet/sing-box/experimental/libbox"
+	B "github.com/sagernet/sing-box"
 )
 
 var (
@@ -25,29 +39,28 @@ var (
 	statusPropagationPort int64
 )
 
-func InitRostovVPNService() error {
-	return service_manager.StartServices()
-}
+func InitRostovVPNService() error { return service_manager.StartServices() }
 
-func Setup(basePath string, workingPath string, tempPath string, statusPort int64, debug bool) error {
+func Setup(basePath, workingPath, tempPath string, statusPort int64, debug bool) error {
 	statusPropagationPort = statusPort
-	if err := libbox.Setup(&libbox.SetupOptions{
+	tcpConn := runtime.GOOS == "windows" // TODO add TVOS
+	FixAndroidStack := runtime.GOOS == "android"
+	libboxOpts := libbox.SetupOptions{
 		BasePath:        basePath,
 		WorkingPath:     workingPath,
 		TempPath:        tempPath,
-		FixAndroidStack: runtime.GOOS == "android",
-	}); err != nil {
-		return E.Cause(err, "setup libbox")
+		IsTVOS:          tcpConn,
+		FixAndroidStack: FixAndroidStack,
 	}
-
+	libbox.Setup(&libboxOpts)
+	// пути
 	sWorkingPath = workingPath
-	if err := os.Chdir(sWorkingPath); err != nil {
-		return err
-	}
+	_ = os.Chdir(sWorkingPath)
 	sTempPath = tempPath
 	sUserID = os.Getuid()
 	sGroupID = os.Getgid()
 
+	// логгер
 	var defaultWriter io.Writer
 	if !debug {
 		defaultWriter = io.Discard
@@ -58,32 +71,48 @@ func Setup(basePath string, workingPath string, tempPath string, statusPort int6
 		Observable:    true,
 	})
 	coreLogFactory = factory
-
 	if err != nil {
 		return E.Cause(err, "create logger")
 	}
 	return InitRostovVPNService()
 }
 
-func NewService(options option.Options) (*libbox.BoxService, error) {
+func NewService(opts option.Options) (*libbox.BoxService, error) {
 	runtimeDebug.FreeOSMemory()
-	content, err := json.Marshal(options)
+
+	base := libbox.BaseContext(nil)         // nil — если не нужно подменять LocalDNS транспорт платформой
+	ctx, cancel := context.WithCancel(base) // уже поверх базового контекста
+	ctx = filemanager.WithDefault(ctx, sWorkingPath, sTempPath, sUserID, sGroupID)
+	urlTestHistoryStorage := urltest.NewHistoryStorage()
+	ctx = service.ContextWithPtr(ctx, urlTestHistoryStorage)
+	instance, err := B.New(B.Options{
+		Context: ctx,
+		Options: opts,
+	})
 	if err != nil {
-		return nil, E.Cause(err, "encode config")
-	}
-	service, err := libbox.NewService(string(content), nil)
-	if err != nil {
+		cancel()
 		return nil, E.Cause(err, "create service")
 	}
 	runtimeDebug.FreeOSMemory()
-	return service, nil
+	service := libbox.NewBoxService(
+		ctx,
+		cancel,
+		instance,
+		service.FromContext[pause.Manager](ctx),
+		urlTestHistoryStorage,
+	)
+	return &service, nil
 }
 
 func readOptions(configContent string) (option.Options, error) {
+	// Decode JSON into typed sing-box option structs. If we use std json.Unmarshal,
+	// nested fields like RemoteDNSServerOptions become map[string]any, which later
+	// crashes in dns.RegisterTransport with:
+	//   interface conversion: interface {} is map[string]interface {}, not *option.RemoteDNSServerOptions
 	ctx := libbox.BaseContext(nil)
-	options, err := singjson.UnmarshalExtendedContext[option.Options](ctx, []byte(configContent))
+	opts, err := singjson.UnmarshalExtendedContext[option.Options](ctx, []byte(configContent))
 	if err != nil {
-		return option.Options{}, E.Cause(err, "decode config")
+		return option.Options{}, fmt.Errorf("decode config: %w", err)
 	}
-	return options, nil
+	return opts, nil
 }

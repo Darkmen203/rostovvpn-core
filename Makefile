@@ -11,7 +11,7 @@ ifeq ($(OS),Windows_NT)
 Not available for Windows! use bash in WSL
 endif
 
-TAGS=with_gvisor,with_quic,with_wireguard,with_utls,with_clash_api,with_grpc
+TAGS=with_gvisor,with_quic,with_wireguard,with_utls,with_clash_api,with_grpc,with_v2ray,with_reality,bydll
 IOS_ADD_TAGS=with_dhcp,with_low_memory,with_conntrack
 GOBUILDLIB=CGO_ENABLED=1 go build -trimpath -tags $(TAGS) -ldflags="-w -s" -buildmode=c-shared
 GOBUILDSRV=CGO_ENABLED=1 go build -ldflags "-s -w" -trimpath -tags $(TAGS)
@@ -58,7 +58,14 @@ windows-amd64:
 	go install -mod=readonly github.com/akavel/rsrc@latest ||echo "rsrc error in installation"
 	go run ./cli tunnel exit
 	cp $(BINDIR)/$(LIBNAME).dll ./$(LIBNAME).dll 
-	$$(go env GOPATH)/bin/rsrc -ico ./assets/rostovvpn-cli.ico -o ./cli/bydll/cli.syso ||echo "rsrc error in syso"
+	# --- важное: пересоздаём syso с манифестом ---
+	rm -f ./cli/bydll/cli.syso
+	$$(go env GOPATH)/bin/rsrc \
+	  -ico ./assets/rostovvpn-cli.ico \
+	  -manifest ./cli/bydll/cli.manifest \
+	  -o ./cli/bydll/cli.syso || echo "rsrc error in syso"
+	# ------------------------------------------------
+# 	$$(go env GOPATH)/bin/rsrc -ico ./assets/rostovvpn-cli.ico -o ./cli/bydll/cli.syso ||echo "rsrc error in syso"
 	env GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc CGO_LDFLAGS="$(LIBNAME).dll" $(GOBUILDSRV) -o $(BINDIR)/$(CLINAME).exe ./cli/bydll
 	rm ./$(LIBNAME).dll
 	make webui
@@ -95,7 +102,7 @@ macos-universal: macos-amd64 macos-arm64
 	chmod +x $(BINDIR)/$(CLINAME)
 
 clean:
-	rm $(BINDIR)/*
+	rm $(BINDIR)/* cli/bydll/cli.syso
 
 
 

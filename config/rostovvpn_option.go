@@ -61,6 +61,8 @@ type RouteOptions struct {
 	IPv6Mode               option.DomainStrategy `json:"ipv6-mode"`
 	BypassLAN              bool                  `json:"bypass-lan"`
 	AllowConnectionFromLAN bool                  `json:"allow-connection-from-lan"`
+    DefaultDomainResolver  string                `json:"default-domain-resolver,omitempty"`
+    DefaultNetworkStrategy string                `json:"default-network-strategy,omitempty"`
 }
 
 type TLSTricks struct {

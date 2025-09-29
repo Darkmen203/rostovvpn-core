@@ -24,7 +24,7 @@ var (
 func (s *CoreService) GetSystemInfo(req *pb.Empty, stream grpc.ServerStreamingServer[pb.SystemInfo]) error {
 	if statusClient == nil {
 		statusClient = libbox.NewCommandClient(
-			&CommandClientHandler{},
+			&ffiHandler{},
 			&libbox.CommandClientOptions{
 				Command:        libbox.CommandStatus,
 				StatusInterval: 1000000000, // 1000ms debounce
@@ -56,7 +56,7 @@ func (s *CoreService) GetSystemInfo(req *pb.Empty, stream grpc.ServerStreamingSe
 func (s *CoreService) OutboundsInfo(req *pb.Empty, stream grpc.ServerStreamingServer[pb.OutboundGroupList]) error {
 	if groupClient == nil {
 		groupClient = libbox.NewCommandClient(
-			&CommandClientHandler{},
+			&ffiHandler{},
 			&libbox.CommandClientOptions{
 				Command:        libbox.CommandGroup,
 				StatusInterval: 500000000, // 500ms debounce
@@ -88,7 +88,7 @@ func (s *CoreService) OutboundsInfo(req *pb.Empty, stream grpc.ServerStreamingSe
 func (s *CoreService) MainOutboundsInfo(req *pb.Empty, stream grpc.ServerStreamingServer[pb.OutboundGroupList]) error {
 	if groupInfoOnlyClient == nil {
 		groupInfoOnlyClient = libbox.NewCommandClient(
-			&CommandClientHandler{},
+			&ffiHandler{},
 			&libbox.CommandClientOptions{
 				Command:        libbox.CommandGroupExpand,
 				StatusInterval: 500000000, // 500ms debounce
@@ -142,6 +142,7 @@ func (s *CoreService) UrlTest(ctx context.Context, in *pb.UrlTestRequest) (*pb.R
 
 func UrlTest(in *pb.UrlTestRequest) (*pb.Response, error) {
 	err := libbox.NewStandaloneCommandClient().URLTest(in.GroupTag)
+	println("[commands.urlTest] !!! libbox.NewStandaloneCommandClient().URLTest(in.GroupTag)=", err, "\n !!! [commands.urlTest]")
 	if err != nil {
 		return &pb.Response{
 			ResponseCode: pb.ResponseCode_FAILED,
