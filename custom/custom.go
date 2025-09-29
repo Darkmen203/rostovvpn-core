@@ -66,8 +66,8 @@ func generateConfig(path *C.char) (res *C.char) {
 	if err != nil {
 		return emptyOrErrorC(err)
 	}
-	fmt.Printf("Config: %+v\n", conf)
-	fmt.Printf("ConfigContent: %+v\n", conf.ConfigContent)
+	// fmt.Printf("Config: %+v\n", conf)
+	// fmt.Printf("ConfigContent: %+v\n", conf.ConfigContent)
 	return C.CString(conf.ConfigContent)
 }
 
@@ -99,7 +99,7 @@ func restart(configPath *C.char, disableMemoryLimit bool) (CErr *C.char) {
 
 //export startCommandClient
 func startCommandClient(command C.int, port C.longlong) *C.char {
-	fmt.Println("[export startCommandClient func startCommandClient] !!! port=\n", port, "\n !!! [export startCommandClient func startCommandClient]")
+	// fmt.Println("[export startCommandClient func startCommandClient] !!! port=\n", port, "\n !!! [export startCommandClient func startCommandClient]")
 	err := v2.StartCommand(int32(command), int64(port))
 	return emptyOrErrorC(err)
 }
@@ -122,7 +122,7 @@ func selectOutbound(groupTag *C.char, outboundTag *C.char) (CErr *C.char) {
 
 //export urlTest
 func urlTest(groupTag *C.char) (CErr *C.char) {
-	fmt.Println("[export urlTest func urlTest] !!! groupTag=\n", groupTag, "\n !!! [export urlTest func urlTest]")
+	// fmt.Println("[export urlTest func urlTest] !!! groupTag=\n", groupTag, "\n !!! [export urlTest func urlTest]")
 
 	_, err := v2.UrlTest(&pb.UrlTestRequest{
 		GroupTag: C.GoString(groupTag),

@@ -112,7 +112,7 @@ func BuildConfigJson(configOpt RostovVPNOptions, input option.Options) (string, 
 
 // TODO include selectors
 func BuildConfig(opt RostovVPNOptions, input option.Options) (*option.Options, error) {
-	fmt.Printf("config options: %++v\n", opt)
+	// fmt.Printf("config options: %++v\n", opt)
 
 	var options option.Options
 	if opt.EnableFullConfig {
@@ -133,13 +133,13 @@ func BuildConfig(opt RostovVPNOptions, input option.Options) (*option.Options, e
 		}
 	}
 
-	fmt.Print("[BuildConfig] !!! input= \n", input, ",\n  !!! [BuildConfig] ")
+	// fmt.Print("[BuildConfig] !!! input= \n", input, ",\n  !!! [BuildConfig] ")
 	setClashAPI(&options, &opt)
 	setLog(&options, &opt)
 	setInbound(&options, &opt)
 	setDns(&options, &opt)
-	fmt.Printf("[debug] Region=%q BlockAds=%v EnableDNSRouting=%v ConnTestUrl=%q\n",
-		opt.Region, opt.BlockAds, opt.EnableDNSRouting, opt.ConnectionTestUrl)
+	// fmt.Printf("[debug] Region=%q BlockAds=%v EnableDNSRouting=%v ConnTestUrl=%q\n",
+		// opt.Region, opt.BlockAds, opt.EnableDNSRouting, opt.ConnectionTestUrl)
 	setRoutingOptions(&options, &opt)
 	setFakeDns(&options, &opt)
 	err := setOutbounds(&options, &input, &opt)
@@ -155,7 +155,7 @@ func addForceDirect(options *option.Options, opt *RostovVPNOptions, directDNSDom
 		return
 	}
 	directDomains := make([]string, 0, len(directDNSDomains))
-	fmt.Println("[addForceDirect] !!! \n", directDomains, "\n !!! [addForceDirect]")
+	// fmt.Println("[addForceDirect] !!! \n", directDomains, "\n !!! [addForceDirect]")
 
 	for domain := range directDNSDomains {
 		if domain == "" {
@@ -468,7 +468,7 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 		newDNSServer(DNSLocalTag, "local", "", 0, ""),
 	}
 	options.DNS = dnsOptions
-	fmt.Println("[setDns] !!! \n", dnsOptions, "\n !!! [setDns]")
+	// fmt.Println("[setDns] !!! \n", dnsOptions, "\n !!! [setDns]")
 
 	// // ВАЖНО: если включены TLS-tricks — прокинем их прямо в DoH (dns-trick-direct)
 	// injectTLSTricksIntoDoH(options, opt)
@@ -517,7 +517,7 @@ func setFakeDns(options *option.Options, opt *RostovVPNOptions) {
 			},
 		},
 	}
-	fmt.Println("[setFakeDns] !!! \n", dnsRule, "\n !!! [setFakeDns]")
+	// fmt.Println("[setFakeDns] !!! \n", dnsRule, "\n !!! [setFakeDns]")
 
 	options.DNS.Rules = append(options.DNS.Rules, option.DNSRule{Type: C.RuleTypeDefault, DefaultOptions: dnsRule})
 }
@@ -567,7 +567,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 	//     DNSWarpHostsTag,
 	// ))
 
-	fmt.Println("[setRoutingOptions] !!! dnsRules=\n", dnsRules, "]n !!! [setRoutingOptions]")
+	// fmt.Println("[setRoutingOptions] !!! dnsRules=\n", dnsRules, "]n !!! [setRoutingOptions]")
 
 	for _, rule := range opt.Rules {
 		routeRule := rule.MakeRule()
@@ -651,7 +651,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 		}
 		dnsRules = append(dnsRules, option.DNSRule{Type: C.RuleTypeDefault, DefaultOptions: dnsRule})
 	}
-	fmt.Println("[setRoutingOptions] !!! \n", *opt, "]n !!! [setRoutingOptions]")
+	// fmt.Println("[setRoutingOptions] !!! \n", *opt, "]n !!! [setRoutingOptions]")
 	if opt.BlockAds {
 		blockRuleSets := []struct {
 			Tag string
@@ -732,7 +732,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 				},
 				DNSBootstrapTag,
 			))
-			fmt.Println("[setRoutingOptions] not other!!! \n", opt.Region, "\n\n\n\n\n", dnsRules, "]n !!! [setRoutingOptions]")
+			// fmt.Println("[setRoutingOptions] not other!!! \n", opt.Region, "\n\n\n\n\n", dnsRules, "]n !!! [setRoutingOptions]")
 
 			routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{RuleSet: regionTags}, OutboundDirectTag))
 			dnsRules = append(dnsRules, newDNSRouteRule(
@@ -801,13 +801,13 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 		// "prefer_ipv4", "prefer_ipv6", "force_ipv4", "force_ipv6".
 		// >>> Конец вставки
 	}
-	fmt.Println("[setRoutingOptions] !!! Rules\n", routeRules, "\n !!! [setRoutingOptions]")
+	// fmt.Println("[setRoutingOptions] !!! Rules\n", routeRules, "\n !!! [setRoutingOptions]")
 
 	options.Route.Rules = append(options.Route.Rules, routeRules...)
 	options.Route.RuleSet = append(options.Route.RuleSet, rulesets...)
 
 	if opt.EnableDNSRouting {
-		fmt.Println("[setRoutingOptions] !!! dnsRules\n", dnsRules, "\n !!! [setRoutingOptions]")
+		// fmt.Println("[setRoutingOptions] !!! dnsRules\n", dnsRules, "\n !!! [setRoutingOptions]")
 
 		options.DNS.Rules = append(options.DNS.Rules, dnsRules...)
 	}
@@ -999,7 +999,7 @@ func applyStaticIPHosts(options *option.Options, records map[string][]string) {
 			},
 		},
 	}
-	fmt.Println("[applyStaticIPHosts] !!! dnsRule\n", dnsRule, "\n !!! [applyStaticIPHosts]")
+	// fmt.Println("[applyStaticIPHosts] !!! dnsRule\n", dnsRule, "\n !!! [applyStaticIPHosts]")
 
 	options.DNS.Rules = append(options.DNS.Rules, option.DNSRule{Type: C.RuleTypeDefault, DefaultOptions: dnsRule})
 }
@@ -1096,7 +1096,7 @@ func pickProxyDNS(addr string, tunService bool) string {
 	a := normalizeDNSAddress(addr)
 	low := strings.ToLower(a)
 	if tunService {
-		fmt.Println("[pickProxyDNS] !!! tunService\n", tunService, "\na=\n", a, "\n", a == "" || strings.HasPrefix(low, "udp://") || strings.HasPrefix(low, "tls://"), "\n !!! [pickProxyDNS]")
+		// fmt.Println("[pickProxyDNS] !!! tunService\n", tunService, "\na=\n", a, "\n", a == "" || strings.HasPrefix(low, "udp://") || strings.HasPrefix(low, "tls://"), "\n !!! [pickProxyDNS]")
 
 		if a == "" || strings.HasPrefix(low, "udp://") || strings.HasPrefix(low, "tls://") {
 			// Prefer DoH in TUN-service mode: Cloudflare endpoint works reliably over HTTPS

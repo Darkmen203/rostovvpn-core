@@ -61,8 +61,8 @@ func DeactivateTunnelService() (bool, error) {
 }
 
 func startTunnelRequestWithFailover(opt RostovVPNOptions, installService bool) {
-	res, err := startTunnelRequest(opt, installService)
-	fmt.Printf("Start Tunnel Result: %v\n", res)
+	_, err := startTunnelRequest(opt, installService)
+	// fmt.Printf("Start Tunnel Result: %v\n", res)
 	if err != nil {
 		fmt.Printf("Start Tunnel Failed! Stopping core... err=%v\n", err)
 		// StopAndAlert(pb.MessageType.MessageType_UNEXPECTED_ERROR, "Start Tunnel Failed! Stopping...")
@@ -157,9 +157,9 @@ func ExitTunnelService() (bool, error) {
 
 func runTunnelService(opt RostovVPNOptions) (bool, error) {
 	executablePath := getTunnelServicePath()
-	fmt.Printf("Executable path is %s", executablePath)
+	// fmt.Printf("Executable path is %s", executablePath)
 	out, err := ExecuteCmd(executablePath, false, "tunnel", "install")
-	fmt.Println("Shell command executed:", out, err)
+	// fmt.Println("Shell command executed:", out, err)
 	if err != nil {
 		out, err = ExecuteCmd(executablePath, true, "tunnel", "run")
 		fmt.Println("Shell command executed without flag:", out, err)

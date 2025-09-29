@@ -129,9 +129,8 @@ func newFFIHandler(port int64, logger log.Logger) *ffiHandler {
 	return &ffiHandler{port: port, logger: logger}
 }
 
-func (h *ffiHandler) Connected() { fmt.Println("[FFI] CONNECTED"); h.logger.Debug("[cmd] CONNECTED") }
+func (h *ffiHandler) Connected() { h.logger.Debug("[cmd] CONNECTED") }
 func (h *ffiHandler) Disconnected(message string) {
-	fmt.Println("[FFI] DISCONNECTED:", message)
 	h.logger.Debug("[cmd] DISCONNECTED: ", message)
 }
 func (h *ffiHandler) ClearLogs() { /* no-op to UI */ }
@@ -149,7 +148,6 @@ func (h *ffiHandler) WriteLogs(it libbox.StringIterator) {
 
 // Статус: маршалим libbox.StatusMessage в JSON и шлём строкой
 func (h *ffiHandler) WriteStatus(m *libbox.StatusMessage) {
-	fmt.Println("[FFI] WriteStatus tick")
 	if m == nil {
 		return
 	}
@@ -170,7 +168,6 @@ func (h *ffiHandler) WriteStatus(m *libbox.StatusMessage) {
 
 // Группы: собираем «плоский» JSON, который удобно парсить во Flutter (SingboxOutboundGroup)
 func (h *ffiHandler) WriteGroups(it libbox.OutboundGroupIterator) {
-	fmt.Println("[FFI] WriteGroups called")
 	var groups []groupJSON
 	for it != nil && it.HasNext() {
 		g := it.Next()
@@ -196,7 +193,6 @@ func (h *ffiHandler) WriteGroups(it libbox.OutboundGroupIterator) {
 		return
 	}
 	b, _ := json.Marshal(groups)
-	fmt.Println("[FFI] groups payload:", string(b))
 	bridge.SendStringToPort(h.port, string(b))
 
 	outboundsInfoObserver.Emit(toProtoGroups(groups))
@@ -241,11 +237,9 @@ var (
 // Здесь НЕ трогаем TCP-порт — коннект берёт на себя libbox.CommandClient внутри sing-box.
 func StartCommand(cmd int32, dartPort int64) error {
 	printLibboxCmdsOnce()
-	fmt.Println("[FFI] StartCommand: cmd=", cmd, " dartPort=", dartPort)
 	coreLogFactory.NewLogger("[FFI]").Info(
 		fmt.Sprintf("StartCommand: cmd=%d dartPort=%d", cmd, dartPort),
 	)
-	fmt.Println("[FFI] StartCommand: cmd=", cmd, " dartPort=", dartPort)
 
 	ffiClientsMu.Lock()
 	if old := ffiClients[cmd]; old != nil {
@@ -256,14 +250,11 @@ func StartCommand(cmd int32, dartPort int64) error {
 	logger := coreLogFactory.NewLogger(fmt.Sprintf("[FFI Command %d]", cmd))
 	handler := newFFIHandler(dartPort, logger)
 
-	// !!! см. раздел 2 — маппинг кодов
 	mapped := mapLibboxCmd(cmd)
-	fmt.Println("[FFI] mapped cmd =>", mapped) // <<<
 	opts := &libbox.CommandClientOptions{
 		Command:        mapped,
 		StatusInterval: int64(time.Second),
 	}
-	fmt.Println("[FFI] connecting to CommandServer...") // <<<
 	client := libbox.NewCommandClient(handler, opts)
 	logger.Info("connecting to CommandServer ...")
 	if err := client.Connect(); err != nil {
@@ -271,7 +262,6 @@ func StartCommand(cmd int32, dartPort int64) error {
 		return err
 	}
 	logger.Info("connect ok")
-	fmt.Println("[FFI] connect OK") // <<<
 
 	ffiClientsMu.Lock()
 	ffiClients[cmd] = client

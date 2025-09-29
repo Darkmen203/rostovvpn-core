@@ -44,7 +44,7 @@ func ParseConfigContentToOptions(contentstr string, debug bool, configOpt *Rosto
 }
 
 func ParseConfigContent(contentstr string, debug bool, configOpt *RostovVPNOptions, fullConfig bool) ([]byte, error) {
-	fmt.Print("\n[config.ParseConfigContent] !!! configOpt= \n", configOpt, ",\n  !!! [config.ParseConfigContent] \n")
+	// fmt.Print("\n[config.ParseConfigContent] !!! configOpt= \n", configOpt, ",\n  !!! [config.ParseConfigContent] \n")
 	
 	if configOpt == nil {
 		configOpt = DefaultRostovVPNOptions()
@@ -52,7 +52,7 @@ func ParseConfigContent(contentstr string, debug bool, configOpt *RostovVPNOptio
 	content := []byte(contentstr)
 	var jsonObj map[string]interface{} = make(map[string]interface{})
 
-	fmt.Printf("Convert using json\n")
+	// fmt.Printf("Convert using json\n")
 	var tmpJsonResult any
 	jsonDecoder := json.NewDecoder(SJ.NewCommentFilter(bytes.NewReader(content)))
 	if err := jsonDecoder.Decode(&tmpJsonResult); err == nil {
@@ -87,7 +87,7 @@ func ParseConfigContent(contentstr string, debug bool, configOpt *RostovVPNOptio
 	if err == nil {
 		return patchConfig([]byte(v2rayStr), "V2rayParser", configOpt)
 	}
-	fmt.Printf("Convert using clash\n")
+	// fmt.Printf("Convert using clash\n")
 	clashObj := clash.Clash{}
 	if err := yaml.Unmarshal(content, &clashObj); err == nil && clashObj.Proxies != nil {
 		if len(clashObj.Proxies) == 0 {
@@ -149,7 +149,7 @@ func patchConfig(content []byte, name string, configOpt *RostovVPNOptions) ([]by
 
 DUMP_AND_VALIDATE:
 	content, _ = json.MarshalIndent(obj, "", "  ")
-	fmt.Printf("%s\n", content)
+	// fmt.Printf("%s\n", content)
 	return validateResult(content, name)
 }
 

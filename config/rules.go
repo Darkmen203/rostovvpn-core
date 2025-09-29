@@ -1,7 +1,7 @@
 package config
 
 import (
-	"fmt"
+	// "fmt"
 	"strconv"
 	"strings"
 
@@ -35,7 +35,7 @@ func (r *Rule) MakeRule() option.DefaultRule {
 	if len(r.Protocol) > 0 {
 		rule.Protocol = append(rule.Protocol, strings.Split(r.Protocol, ",")...)
 	}
-	fmt.Println("[MakeRule] !!! \n", rule, "\n !!! [MakeRule]")
+	// fmt.Println("[MakeRule] !!! \n", rule, "\n !!! [MakeRule]")
 	return rule
 }
 

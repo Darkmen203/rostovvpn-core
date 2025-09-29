@@ -38,7 +38,7 @@ func newDNSServer(tag, address, resolver string, strategy option.DomainStrategy,
 	if serverNameParam == "" {
 		serverNameParam = strings.TrimSpace(params.Get("sni"))
 	}
-	fmt.Println("[newDNSServer] host =\n\n\n\n", scheme, "\nhost=\n", host ,"\n\n\n [newDNSServer]")
+	// fmt.Println("[newDNSServer] host =\n\n\n\n", scheme, "\nhost=\n", host ,"\n\n\n [newDNSServer]")
 
 	path := u.Path
 	if strings.TrimSpace(host) == "" &&
@@ -85,7 +85,7 @@ func newDNSServer(tag, address, resolver string, strategy option.DomainStrategy,
 		}
 	}
 	// detour to an empty direct outbound makes no sense
-	fmt.Println("[newDNSServer] scheme =\n\n\n\n", scheme, "\n\n\n [newDNSServer]")
+	// fmt.Println("[newDNSServer] scheme =\n\n\n\n", scheme, "\n\n\n [newDNSServer]")
 
 	switch scheme {
 	case C.DNSTypeLocal:
@@ -106,7 +106,7 @@ func newDNSServer(tag, address, resolver string, strategy option.DomainStrategy,
 		o.Options = &option.LocalDNSServerOptions{
 			RawLocalDNSServerOptions: remoteOptions.RawLocalDNSServerOptions,
 		}
-		fmt.Println("[newDNSServer] return local =\n\n\n\n", o, "\n\n\n [newDNSServer]")
+		// fmt.Println("[newDNSServer] return local =\n\n\n\n", o, "\n\n\n [newDNSServer]")
 
 		// local — без адреса; detour/domain_resolver можно оставить (ядро проигнорит)
 		return o
@@ -129,7 +129,7 @@ func newDNSServer(tag, address, resolver string, strategy option.DomainStrategy,
 				ServerPort: port,
 			},
 		}
-		fmt.Println("[newDNSServer] return tcp or udp =\n\n\n\n", option.DNSServerOptions{Type: scheme, Tag: tag, Options: opts}, "\n\n\n [newDNSServer]")
+		// fmt.Println("[newDNSServer] return tcp or udp =\n\n\n\n", option.DNSServerOptions{Type: scheme, Tag: tag, Options: opts}, "\n\n\n [newDNSServer]")
 		return option.DNSServerOptions{Type: scheme, Tag: tag, Options: opts}
 
 	case C.DNSTypeTLS:
