@@ -95,7 +95,7 @@ func startTunnelRequest(opt RostovVPNOptions, installService bool) (bool, error)
 	defer cancel()
 	_, _ = c.Stop(ctx, &pb.Empty{})
 	res, err := c.Start(ctx, &pb.TunnelStartRequest{
-		Ipv6:                   opt.IPv6Mode == option.DomainStrategy(dns.DomainStrategyUseIPv4),
+		Ipv6:                   opt.IPv6Mode == option.DomainStrategy(dns.DomainStrategyUseIPv6),
 		ServerPort:             int32(opt.InboundOptions.MixedPort),
 		StrictRoute:            opt.InboundOptions.StrictRoute,
 		EndpointIndependentNat: true,
