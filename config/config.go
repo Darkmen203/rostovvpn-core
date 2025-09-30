@@ -308,11 +308,14 @@ func patchOutboundSafe(base option.Outbound, opt RostovVPNOptions, staticIPs map
 			// if v.TLS != nil && v.TLS.UTLS != nil && v.TLS.UTLS.Enabled && v.TLS.UTLS.Fingerprint == "" {
 			//     v.TLS.UTLS.Fingerprint = "random"
 			// }
-			// ВАЖНО: исключаем TUN loop — дозвон до сервера делаем через direct-детур.
-			// DialerOptions — это struct, не pointer, поэтому просто проставляем поле.
-			if v.DialerOptions.Detour == "" {
-				v.DialerOptions.Detour = OutboundDirectTag // "direct"
-			}
+			
+            // 2) дозвон до сервера — только через direct, чтобы не ловить VPN-loop
+            if v.DialerOptions.Detour == "" {
+                v.DialerOptions.Detour = OutboundDirectTag // "direct"
+            }
+
+            // 3) вернуть изменённые options (на случай копирования интерфейса)
+            o.Options = v
 		}
 		// при необходимости добавите vmess/trojan/hysteria и т.д. по аналогии
 	}
@@ -465,7 +468,7 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 	// иначе при блокировке CF DoH — всё ломается.
 	dnsRemoteDetour := OutboundSelectTag
 
-	if runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService {
+	if opt.EnableTunService {
 		dnsRemoteDetour = OutboundDirectTag
 	}
 
