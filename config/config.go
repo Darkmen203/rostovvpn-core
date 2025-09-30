@@ -872,7 +872,7 @@ func newRemoteRuleSet(tag, url string) option.RuleSet {
 		RemoteOptions: option.RemoteRuleSet{
 			URL:            url,
 			UpdateInterval: badoption.Duration(5 * 24 * time.Hour),
-			DownloadDetour: OutboundSelectTag,
+			DownloadDetour: OutboundDirectTag,
 		},
 	}
 }
