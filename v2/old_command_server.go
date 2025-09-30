@@ -1,6 +1,7 @@
 package v2
 
 import (
+
 	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 
 	"github.com/sagernet/sing-box/experimental/libbox"
@@ -49,5 +50,9 @@ func startCommandServer() error {
 	logger := coreLogFactory.NewLogger("[Command Server Handler]")
 	logger.Trace("Starting command server")
 	oldCommandServer = libbox.NewCommandServer(&CommandServerHandler{logger: logger}, 300)
-	return oldCommandServer.Start()
+	if err := oldCommandServer.Start(); err != nil {
+		return err
+	}
+
+	return nil
 }

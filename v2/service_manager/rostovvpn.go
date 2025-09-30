@@ -20,6 +20,7 @@ func Register(service adapter.Service) {
 func StartServices() error {
 	CloseServices()
 	for _, stage := range adapter.ListStartStages {
+
 		for _, service := range preservices {
 			if err := adapter.LegacyStart(service, stage); err != nil {
 				return err

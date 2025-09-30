@@ -2,6 +2,7 @@ package mobile
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -43,19 +44,7 @@ func BuildConfig(path string, RostovVPNOptionsJson string) (string, error) {
 	if err != nil {
 		return "", nil
 	}
-	if RostovVPNOptions.Warp.WireguardConfigStr != "" {
-		err := json.Unmarshal([]byte(RostovVPNOptions.Warp.WireguardConfigStr), &RostovVPNOptions.Warp.WireguardConfig)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	if RostovVPNOptions.Warp2.WireguardConfigStr != "" {
-		err := json.Unmarshal([]byte(RostovVPNOptions.Warp2.WireguardConfigStr), &RostovVPNOptions.Warp2.WireguardConfig)
-		if err != nil {
-			return "", err
-		}
-	}
+	fmt.Println("[mobile.BuildConfig] !!! \noptions=\n", options, "\n\nRostovVPNOptions=\n", RostovVPNOptions, "\n !!! [mobile.BuildConfig]")
 
 	return config.BuildConfigJson(*RostovVPNOptions, options)
 }

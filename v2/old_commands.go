@@ -1,3 +1,4 @@
+//go:build legacy
 package v2
 
 import (
@@ -9,8 +10,12 @@ var (
 	oldGroupClient         *libbox.CommandClient
 	oldGroupInfoOnlyClient *libbox.CommandClient
 )
+const defaultCmdPort = 8964
 
-func StartCommand(command int32, port int64) error {
+func StartCommandLegacy(command int32, port int64) error {
+	if port == 0 {
+        port = defaultCmdPort
+    }
 	switch command {
 	case libbox.CommandStatus:
 		oldStatusClient = libbox.NewCommandClient(
@@ -52,7 +57,7 @@ func StartCommand(command int32, port int64) error {
 	return nil
 }
 
-func StopCommand(command int32) error {
+func StopCommandLegacy(command int32) error {
 	switch command {
 	case libbox.CommandStatus:
 		err := oldStatusClient.Disconnect()

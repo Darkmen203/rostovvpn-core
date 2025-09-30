@@ -4,15 +4,24 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"reflect"
 	"time"
+	"unsafe"
 
 	"github.com/Darkmen203/rostovvpn-core/bridge"
 	"github.com/Darkmen203/rostovvpn-core/config"
 	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 	"github.com/sagernet/sing-box/experimental/libbox"
 	"github.com/sagernet/sing-box/log"
+
+	"github.com/sagernet/sing-box/option"
+	singjson "github.com/sagernet/sing/common/json"
+
+	"github.com/sagernet/sing-box/adapter"
+	"github.com/sagernet/sing/service"
 )
 
 var (
@@ -28,6 +37,7 @@ func StopAndAlert(msgType pb.MessageType, message string) {
 	config.DeactivateTunnelService()
 	if oldCommandServer != nil {
 		oldCommandServer.SetService(nil)
+
 	}
 	if Box != nil {
 		Box.Close()
@@ -100,6 +110,9 @@ func StartService(in *pb.StartRequest) (*pb.CoreInfoResponse, error) {
 	}
 	if !in.EnableRawConfig {
 		Log(pb.LogLevel_DEBUG, pb.LogType_CORE, "Building config")
+		if RostovVPNOptions == nil {
+			RostovVPNOptions = config.DefaultRostovVPNOptions()
+		}
 		parsedContent_tmp, err := config.BuildConfig(*RostovVPNOptions, parsedContent)
 		if err != nil {
 			Log(pb.LogLevel_FATAL, pb.LogType_CORE, err.Error())
@@ -148,7 +161,12 @@ func StartService(in *pb.StartRequest) (*pb.CoreInfoResponse, error) {
 	}
 	Box = instance
 	if in.EnableOldCommandServer {
-		oldCommandServer.SetService(Box)
+		if primeClashServerAfterStart(Box, int(RostovVPNOptions.ClashApiPort)) {
+			Log(pb.LogLevel_INFO, pb.LogType_CORE, "Binding CommandServer to BoxService")
+			safeSetCommandService(oldCommandServer, Box)
+		} else {
+			Log(pb.LogLevel_WARNING, pb.LogType_CORE, "Clash API not available or wrong type; skipping CommandServer.SetService")
+		}
 	}
 
 	resp := SetCoreStatus(pb.CoreState_STARTED, pb.MessageType_EMPTY, "")
@@ -205,21 +223,9 @@ func (s *CoreService) ChangeRostovVPNSettings(ctx context.Context, in *pb.Change
 
 func ChangeRostovVPNSettings(in *pb.ChangeRostovVPNSettingsRequest) (*pb.CoreInfoResponse, error) {
 	RostovVPNOptions = config.DefaultRostovVPNOptions()
-	err := json.Unmarshal([]byte(in.GetrostovVPNSettingsJson()), RostovVPNOptions)
+	err := json.Unmarshal([]byte(in.GetRostovvpnSettingsJson()), RostovVPNOptions)
 	if err != nil {
 		return nil, err
-	}
-	if RostovVPNOptions.Warp.WireguardConfigStr != "" {
-		err := json.Unmarshal([]byte(RostovVPNOptions.Warp.WireguardConfigStr), &RostovVPNOptions.Warp.WireguardConfig)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if RostovVPNOptions.Warp2.WireguardConfigStr != "" {
-		err := json.Unmarshal([]byte(RostovVPNOptions.Warp2.WireguardConfigStr), &RostovVPNOptions.Warp2.WireguardConfig)
-		if err != nil {
-			return nil, err
-		}
 	}
 	return &pb.CoreInfoResponse{}, nil
 }
@@ -245,13 +251,20 @@ func GenerateConfig(in *pb.GenerateConfigRequest) (*pb.GenerateConfigResponse, e
 	}, nil
 }
 
+// parseOptionsStrict парсит конфиг sing-box в строго типизированный option.Options.
+func parseOptionsStrict(content string) (option.Options, error) {
+	ctx := libbox.BaseContext(nil)
+	// UnmarshalExtendedContext возвращает (T, error)
+	return singjson.UnmarshalExtendedContext[option.Options](ctx, []byte(content))
+}
+
 func generateConfigFromFile(path string, configOpt config.RostovVPNOptions) (string, error) {
 	os.Chdir(filepath.Dir(path))
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
 	}
-	options, err := readOptions(string(content))
+	options, err := parseOptionsStrict(string(content))
 	if err != nil {
 		return "", err
 	}
@@ -291,6 +304,7 @@ func Stop() (*pb.CoreInfoResponse, error) {
 	config.DeactivateTunnelService()
 	if oldCommandServer != nil {
 		oldCommandServer.SetService(nil)
+
 	}
 
 	err := Box.Close()
@@ -354,4 +368,74 @@ func Restart(in *pb.StartRequest) (*pb.CoreInfoResponse, error) {
 	libbox.SetMemoryLimit(!in.DisableMemoryLimit)
 	resp, gErr := StartService(in)
 	return resp, gErr
+}
+
+// безопасный вызов SetService: либа не уронит процесс
+func safeSetCommandService(cmd *libbox.CommandServer, svc *libbox.BoxService) {
+	defer func() { _ = recover() }()
+	cmd.SetService(svc)
+}
+
+// простая проверка, слушает ли Clash API порт
+func probeClashTCP(addr string, timeout time.Duration) bool {
+	d := net.Dialer{Timeout: timeout}
+	c, err := d.Dial("tcp", addr)
+	if err != nil {
+		return false
+	}
+	_ = c.Close()
+	return true
+}
+
+// после svc.Start(): подождём ClashServer в ctx с ретраями и логом
+func primeClashServerAfterStart(svc *libbox.BoxService, port int) bool {
+	rv := reflect.ValueOf(svc).Elem()
+
+	// 1) ctx: читаем приватное поле через unsafe
+	ctxField := rv.FieldByName("ctx")
+	if !ctxField.IsValid() {
+		Log(pb.LogLevel_WARNING, pb.LogType_CORE, "BoxService has no ctx field")
+		return false
+	}
+	// достаём значение приватного поля
+	ctxPtr := unsafe.Pointer(ctxField.UnsafeAddr())
+	ctxVal := reflect.NewAt(ctxField.Type(), ctxPtr).Elem()
+	ctxIface := ctxVal.Interface()
+	ctx, ok := ctxIface.(context.Context)
+	if !ok || ctx == nil {
+		Log(pb.LogLevel_WARNING, pb.LogType_CORE, "BoxService ctx invalid")
+		return false
+	}
+
+	// 2) ждём регистрацию ClashServer (до ~1.5 сек)
+	var cs adapter.ClashServer
+	for i := 0; i < 15; i++ {
+		func() { defer func() { _ = recover() }(); cs = service.FromContext[adapter.ClashServer](ctx) }()
+		if cs != nil {
+			Log(pb.LogLevel_DEBUG, pb.LogType_CORE, fmt.Sprintf("ClashServer in ctx type=%T", cs))
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// 3) параллельно проверим, слушается ли TCP порт
+	host := fmt.Sprintf("127.0.0.1:%d", port)
+	if probeClashTCP(host, 200*time.Millisecond) {
+		Log(pb.LogLevel_DEBUG, pb.LogType_CORE, "Clash API TCP is listening at "+host)
+	} else {
+		Log(pb.LogLevel_WARNING, pb.LogType_CORE, "Clash API TCP is NOT listening at "+host)
+	}
+
+	if cs == nil {
+		return false
+	}
+
+	// 4) прописываем приватное поле clashServer через unsafe
+	clashField := rv.FieldByName("clashServer")
+	if !clashField.IsValid() {
+		return false
+	}
+	clashPtr := unsafe.Pointer(clashField.UnsafeAddr())
+	reflect.NewAt(clashField.Type(), clashPtr).Elem().Set(reflect.ValueOf(cs))
+	return true
 }

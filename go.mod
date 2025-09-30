@@ -105,7 +105,7 @@ require (
 require (
 	github.com/Darkmen203/ray2sing v0.0.0-20250917072930-914f270bd17c
 	github.com/Darkmen203/rostovvpn-app-demo-extension v0.0.0-20250917202306-2e4594ab2e05
-	github.com/Darkmen203/rostovvpn-ip-scanner-extension v0.0.0-20250917202754-03bcaee72452 // indirect
+	github.com/Darkmen203/rostovvpn-ip-scanner-extension v0.0.0-20250917202754-03bcaee72452
 )
 
 require (
@@ -130,6 +130,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hdevalence/ed25519consensus v0.2.0 // indirect
 	github.com/illarion/gonotify/v3 v3.0.2 // indirect
+	github.com/imkira/go-observer/v2 v2.0.0-20230629064422-8e0b61f11f1b
 	github.com/jsimonetti/rtnetlink v1.4.0 // indirect
 	github.com/mdlayher/genetlink v1.3.2 // indirect
 	github.com/mdlayher/netlink v1.7.3-0.20250113171957-fbb4dce95f42 // indirect
@@ -164,7 +165,7 @@ require (
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
 
-replace github.com/sagernet/sing-box => github.com/Darkmen203/rostovvpn-sing-box v0.0.0-20250917175140-aeadb2137060
+replace github.com/sagernet/sing-box => github.com/Darkmen203/rostovvpn-sing-box v0.0.0-20250923160250-118b983a614d
 
 replace github.com/xtls/xray-core => github.com/Darkmen203/xray-core v0.0.0-20250917075812-85bb28f203ae
 

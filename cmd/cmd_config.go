@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,7 +10,6 @@ import (
 	"github.com/Darkmen203/rostovvpn-core/config"
 	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 	v2 "github.com/Darkmen203/rostovvpn-core/v2"
-	"github.com/sagernet/sing-box/experimental/libbox"
 	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing-box/option"
 	singjson "github.com/sagernet/sing/common/json"
@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	rostovVPNSettingPath     string
+	rostovVPNSettingPath   string
 	configPath             string
 	defaultConfigs         config.RostovVPNOptions = *config.DefaultRostovVPNOptions()
 	commandBuildOutputPath string
@@ -112,7 +112,9 @@ func check(path string) error {
 	if err != nil {
 		return err
 	}
-	return libbox.CheckConfig(string(content))
+	// Простая проверка: распарсить как sing-box options
+	_, err = readConfigBytes(content)
+	return err
 }
 
 func readConfigAt(path string) (*option.Options, error) {
@@ -124,7 +126,7 @@ func readConfigAt(path string) (*option.Options, error) {
 }
 
 func readConfigBytes(content []byte) (*option.Options, error) {
-	ctx := libbox.BaseContext(nil)
+	ctx := context.Background() // вместо libbox.BaseContext(nil)
 	options, err := singjson.UnmarshalExtendedContext[option.Options](ctx, content)
 	if err != nil {
 		return nil, err

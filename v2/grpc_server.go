@@ -3,10 +3,10 @@ package v2
 /*
 #include "stdint.h"
 */
-
 import (
 	"log"
 	"net"
+
 
 	"github.com/Darkmen203/rostovvpn-core/extension"
 	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
@@ -17,6 +17,7 @@ import (
 type HelloService struct {
 	pb.UnimplementedHelloServer
 }
+
 type CoreService struct {
 	pb.UnimplementedCoreServer
 }
@@ -33,9 +34,6 @@ func StartGrpcServer(listenAddressG string, service string) (*grpc.Server, error
 	}
 	s := grpc.NewServer()
 	if service == "core" {
-
-		// Setup("./tmp/", "./tmp", "./tmp", 11111, false)
-
 		useFlutterBridge = false
 		pb.RegisterCoreServer(s, &CoreService{})
 		pb.RegisterExtensionHostServiceServer(s, &extension.ExtensionHostService{})
@@ -50,7 +48,6 @@ func StartGrpcServer(listenAddressG string, service string) (*grpc.Server, error
 			log.Printf("failed to serve: %v", err)
 		}
 		log.Printf("Server stopped")
-		// cancel()
 	}()
 	return s, nil
 }
@@ -58,11 +55,9 @@ func StartGrpcServer(listenAddressG string, service string) (*grpc.Server, error
 func StartCoreGrpcServer(listenAddressG string) (*grpc.Server, error) {
 	return StartGrpcServer(listenAddressG, "core")
 }
-
 func StartHelloGrpcServer(listenAddressG string) (*grpc.Server, error) {
 	return StartGrpcServer(listenAddressG, "hello")
 }
-
 func StartTunnelGrpcServer(listenAddressG string) (*grpc.Server, error) {
 	return StartGrpcServer(listenAddressG, "tunnel")
 }

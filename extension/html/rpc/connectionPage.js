@@ -9,7 +9,7 @@ function openConnectionPage() {
         connect();
         $("#connect-button").click(async () => {
             const hsetting_request = new rostovvpn.ChangeRostovVPNSettingsRequest();
-            hsetting_request.setrostovVPNSettingsJson($("#rostovvpn-settings").val());
+            hsetting_request.setRostovVPNSettingsJson($("#rostovvpn-settings").val());
             try{
                 const hres=await rostovvpnClient.ChangeRostovVPNSettings(hsetting_request, {});
             }catch(err){
