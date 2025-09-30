@@ -258,9 +258,9 @@ func setOutbounds(options *option.Options, input *option.Options, opt *RostovVPN
 	urlTest.Options.(*option.URLTestOutboundOptions).URL = url
 
 	defaultSelect := urlTest.Tag
-    if len(tags) > 0 {
-        defaultSelect = tags[0]
-    }
+	if len(tags) > 0 {
+		defaultSelect = tags[0]
+	}
 	for _, tag := range tags {
 		if strings.Contains(strings.ToLower(tag), "default") {
 			defaultSelect = tag
@@ -308,6 +308,11 @@ func patchOutboundSafe(base option.Outbound, opt RostovVPNOptions, staticIPs map
 			// if v.TLS != nil && v.TLS.UTLS != nil && v.TLS.UTLS.Enabled && v.TLS.UTLS.Fingerprint == "" {
 			//     v.TLS.UTLS.Fingerprint = "random"
 			// }
+			// ВАЖНО: исключаем TUN loop — дозвон до сервера делаем через direct-детур.
+			// DialerOptions — это struct, не pointer, поэтому просто проставляем поле.
+			if v.DialerOptions.Detour == "" {
+				v.DialerOptions.Detour = OutboundDirectTag // "direct"
+			}
 		}
 		// при необходимости добавите vmess/trojan/hysteria и т.д. по аналогии
 	}
@@ -334,9 +339,13 @@ func setClashAPI(options *option.Options, opt *RostovVPNOptions) {
 }
 
 func setLog(options *option.Options, opt *RostovVPNOptions) {
+	output := opt.LogFile
+	if output == "" {
+		output = "box.log" // будет создан рядом с last_config.json
+	}
 	options.Log = &option.LogOptions{
 		Level:        opt.LogLevel,
-		Output:       opt.LogFile,
+		Output:       output,
 		Disabled:     false,
 		Timestamp:    true,
 		DisableColor: true,
@@ -543,6 +552,10 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 
 	routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{Inbound: []string{InboundDNSTag}}, OutboundDNSTag))
 	routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{Port: []uint16{53}}, OutboundDNSTag))
+	routeRules = append(routeRules, newRouteRule(
+		option.RawDefaultRule{Domain: []string{"api.ip.sb", "ipapi.co", "ipinfo.io"}},
+		OutboundDirectTag,
+	))
 
 	if opt.BypassLAN {
 		routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{IPIsPrivate: true}, OutboundBypassTag))
