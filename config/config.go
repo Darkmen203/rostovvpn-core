@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
+	reflect "reflect"
 	"runtime"
 	"sort"
 	"strings"
@@ -492,6 +493,8 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 	// если флаги включены.
 	warnIfTLSTricksRequestedButUnsupported(opt)
 
+	ensureDNSServerDetour(options, DNSTricksDirectTag, OutboundDirectTag)
+
 	// if ips := getIPs([]string{"www.speedtest.net", "sky.rethinkdns.com"}); len(ips) > 0 {
 	// 	applyStaticIPHosts(options, map[string][]string{"sky.rethinkdns.com": ips})
 	// }
@@ -863,6 +866,13 @@ func pickDefaultResolver(opt *RostovVPNOptions) string {
 	if opt != nil && opt.EnableTunService {
 		return DNSTricksDirectTag
 	}
+	// На Android/TUN используем bootstrap (udp 8.8.8.8) как дефолтный резолвер
+	// для внутренних резолвов (включая резолв аутбаундов), чтобы исключить
+	// цикл «dns-remote → select → vless(нужен DNS)» на старте.
+	if opt != nil && (runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService) {
+		return DNSBootstrapTag
+	}
+	// На прочих ОС оставляем прежнее безопасное значение.
 	return DNSTricksDirectTag
 }
 func legacyDNSServer(tag, address, resolver string, strategy option.DomainStrategy, detour string) option.DNSServerOptions {
@@ -1131,4 +1141,33 @@ func pickProxyDNS(addr string, tunService bool) string {
 		}
 	}
 	return a
+}
+
+// ensureDNSServerDetour ставит detour для DNS-сервера с нужным tag,
+// не привязываясь к конкретным типам опций (работает через reflection).
+func ensureDNSServerDetour(options *option.Options, tag, detour string) {
+	if options == nil || options.DNS == nil || detour == "" || tag == "" {
+		return
+	}
+	for i := range options.DNS.Servers {
+		if options.DNS.Servers[i].Tag != tag {
+			continue
+		}
+		// Опции обычно pointer на структуру; аккуратно достаём и правим поле Detour, если оно есть.
+		optIface := options.DNS.Servers[i].Options
+		rv := reflect.ValueOf(optIface)
+		if rv.Kind() != reflect.Ptr || rv.IsNil() {
+			continue
+		}
+		elem := rv.Elem()
+		if !elem.IsValid() || elem.Kind() != reflect.Struct {
+			continue
+		}
+		f := elem.FieldByName("Detour")
+		if f.IsValid() && f.CanSet() && f.Kind() == reflect.String && f.String() == "" {
+			f.SetString(detour)
+			// интерфейс уже указывает на ту же область памяти, но на всякий случай пере-присвоим
+			options.DNS.Servers[i].Options = optIface
+		}
+	}
 }
