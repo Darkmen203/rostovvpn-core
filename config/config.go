@@ -341,98 +341,88 @@ func setLog(options *option.Options, opt *RostovVPNOptions) {
 }
 
 func setInbound(options *option.Options, opt *RostovVPNOptions) {
-	var inboundDomainStrategy option.DomainStrategy
-	if !opt.ResolveDestination {
-		inboundDomainStrategy = option.DomainStrategy(dns.DomainStrategyAsIS)
-	} else {
-		inboundDomainStrategy = opt.IPv6Mode
-	}
+    var inboundDomainStrategy option.DomainStrategy
+    if !opt.ResolveDestination {
+        inboundDomainStrategy = option.DomainStrategy(dns.DomainStrategyAsIS)
+    } else {
+        inboundDomainStrategy = opt.IPv6Mode
+    }
 
-	// ВАЖНО:
-	// TUN inbound создаём ТОЛЬКО когда EnableTun = true.
-	// В режиме EnableTunService TUN поднимает отдельный сервис (RostovVPNCli),
-	// ядро sing-box TUN НЕ трогает.
-	if opt.EnableTun {
-		if opt.MTU == 0 || opt.MTU > 2000 {
-			opt.MTU = 1450
-		}
+    // TUN поднимаем только при EnableTun
+    if opt.EnableTun {
+        if opt.MTU == 0 || opt.MTU > 2000 {
+            opt.MTU = 1450
+        }
 
-		addressList := badoption.Listable[netip.Prefix]{}
-		switch opt.IPv6Mode {
-		case option.DomainStrategy(dns.DomainStrategyUseIPv4):
-			addressList = append(addressList, netip.MustParsePrefix("172.19.0.1/28"))
-		case option.DomainStrategy(dns.DomainStrategyUseIPv6):
-			addressList = append(addressList, netip.MustParsePrefix("fdfe:dcba:9876::1/126"))
-		default:
-			addressList = append(addressList,
-				netip.MustParsePrefix("172.19.0.1/28"),
-				netip.MustParsePrefix("fdfe:dcba:9876::1/126"),
-			)
-		}
+        // ВАЖНО:
+        // 1) Всегда массив (даже при IPv4-only), иначе Listable сериализуется в строку.
+        // 2) Используем /30 (IPv4) и /126 (IPv6) для p2p — это стабильно на Android/gVisor.
+        addressList := badoption.Listable[netip.Prefix]{
+            netip.MustParsePrefix("172.19.0.1/30"),
+            netip.MustParsePrefix("fdfe:dcba:9876::1/126"),
+        }
 
-		tunOptions := &option.TunInboundOptions{
-			Stack:       opt.TUNStack,
-			MTU:         opt.MTU,
-			AutoRoute:   true,
-			StrictRoute: opt.StrictRoute,
-			Address:     addressList,
-			// Чёткое имя интерфейса — удобно для диагностики и совпадает с тем, что ты видишь в системе.
-			InterfaceName: "RostovVPNTunnel",
-			InboundOptions: option.InboundOptions{
-				SniffEnabled:             true,
-				SniffOverrideDestination: false,
-				DomainStrategy:           inboundDomainStrategy,
-			},
-		}
+        tunOptions := &option.TunInboundOptions{
+            Stack:         opt.TUNStack,
+            MTU:           opt.MTU,
+            AutoRoute:     true,
+            StrictRoute:   opt.StrictRoute,
+            Address:       addressList, // ← массив, не скаляр
+            InterfaceName: "RostovVPNTunnel",
+            InboundOptions: option.InboundOptions{
+                SniffEnabled:             true,
+                SniffOverrideDestination: false,
+                DomainStrategy:           inboundDomainStrategy,
+            },
+        }
 
-		options.Inbounds = append(options.Inbounds, option.Inbound{
-			Type:    C.TypeTun,
-			Tag:     InboundTUNTag,
-			Options: tunOptions,
-		})
-	}
+        options.Inbounds = append(options.Inbounds, option.Inbound{
+            Type:    C.TypeTun,
+            Tag:     InboundTUNTag,
+            Options: tunOptions,
+        })
+    }
 
-	bind := "127.0.0.1"
-	if opt.AllowConnectionFromLAN {
-		bind = "0.0.0.0"
-	}
+    bind := "127.0.0.1"
+    if opt.AllowConnectionFromLAN {
+        bind = "0.0.0.0"
+    }
 
-	mixedOptions := &option.HTTPMixedInboundOptions{
-		ListenOptions: option.ListenOptions{
-			Listen:     addrPtr(bind),
-			ListenPort: opt.MixedPort,
-			InboundOptions: option.InboundOptions{
-				SniffEnabled:             true,
-				SniffOverrideDestination: false, // был true
-				DomainStrategy:           inboundDomainStrategy,
-			},
-		},
-		SetSystemProxy: opt.SetSystemProxy,
-	}
-	options.Inbounds = append(options.Inbounds, option.Inbound{
-		Type:    C.TypeMixed,
-		Tag:     InboundMixedTag,
-		Options: mixedOptions,
-	})
+    mixedOptions := &option.HTTPMixedInboundOptions{
+        ListenOptions: option.ListenOptions{
+            Listen:     addrPtr(bind),
+            ListenPort: opt.MixedPort,
+            InboundOptions: option.InboundOptions{
+                SniffEnabled:             true,
+                SniffOverrideDestination: false, // был true
+                DomainStrategy:           inboundDomainStrategy,
+            },
+        },
+        SetSystemProxy: opt.SetSystemProxy,
+    }
+    options.Inbounds = append(options.Inbounds, option.Inbound{
+        Type:    C.TypeMixed,
+        Tag:     InboundMixedTag,
+        Options: mixedOptions,
+    })
 
-	directDNSOptions := &option.DirectInboundOptions{
-		ListenOptions: option.ListenOptions{
-			Listen:     addrPtr(bind),
-			ListenPort: opt.LocalDnsPort,
-		},
-	}
-	options.Inbounds = append(options.Inbounds, option.Inbound{
-		Type:    C.TypeDirect,
-		Tag:     InboundDNSTag,
-		Options: directDNSOptions,
-	})
+    directDNSOptions := &option.DirectInboundOptions{
+        ListenOptions: option.ListenOptions{
+            Listen:     addrPtr(bind),
+            ListenPort: opt.LocalDnsPort,
+        },
+    }
+    options.Inbounds = append(options.Inbounds, option.Inbound{
+        Type:    C.TypeDirect,
+        Tag:     InboundDNSTag,
+        Options: directDNSOptions,
+    })
 
-	// Если выбран режим сервиса — активируем его здесь,
-	// но сам TUN интерфейс ядро не конфигурирует.
-	if opt.EnableTunService {
-		ActivateTunnelService(*opt)
-	}
+    if opt.EnableTunService {
+        ActivateTunnelService(*opt)
+    }
 }
+
 func setDns(options *option.Options, opt *RostovVPNOptions) {
 	dnsOptions := &option.DNSOptions{}
 	dnsOptions.Final = DNSRemoteTag
@@ -467,7 +457,7 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 		// 0) bootstrap UDP → direct
 		newDNSServer(DNSBootstrapTag, bootstrap, DNSLocalTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
 		// 1) proxy‑DoH Cloudflare → detour=select (через прокси), имя резолвим через sky.rethinkdns.com
-		newDNSServer(DNSRemoteTag, pickProxyDNS(opt.RemoteDnsAddress, opt.EnableTunService), remoteResolver, opt.RemoteDnsDomainStrategy, dnsRemoteDetour),
+		newDNSServer(DNSRemoteTag, pickProxyDNS(opt.RemoteDnsAddress, runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService), remoteResolver, opt.RemoteDnsDomainStrategy, dnsRemoteDetour),
 		// 2) trick‑DoH RethinkDNS → direct, с хостами
 		newDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", DNSWarpHostsTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
 		// 3) local/system
@@ -872,7 +862,7 @@ func newRemoteRuleSet(tag, url string) option.RuleSet {
 		RemoteOptions: option.RemoteRuleSet{
 			URL:            url,
 			UpdateInterval: badoption.Duration(5 * 24 * time.Hour),
-			DownloadDetour: OutboundDirectTag,
+			DownloadDetour: OutboundSelectTag,
 		},
 	}
 }
