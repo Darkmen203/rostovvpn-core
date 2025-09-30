@@ -19,6 +19,7 @@ import (
 	dns "github.com/sagernet/sing-dns"
 	badjson "github.com/sagernet/sing/common/json/badjson"
 	badoption "github.com/sagernet/sing/common/json/badoption"
+	singjson "github.com/sagernet/sing/common/json"
 )
 
 const (
@@ -46,19 +47,24 @@ const (
 var OutboundMainProxyTag = OutboundSelectTag
 
 func BuildConfigJson(configOpt RostovVPNOptions, input option.Options) (string, error) {
-	options, err := BuildConfig(configOpt, input)
-	if err != nil {
-		return "", err
-	}
-	var buffer bytes.Buffer
-	json.NewEncoder(&buffer)
-	encoder := json.NewEncoder(&buffer)
-	encoder.SetIndent("", "  ")
-	err = encoder.Encode(options)
-	if err != nil {
-		return "", err
-	}
-	return buffer.String(), nil
+    options, err := BuildConfig(configOpt, input)
+    if err != nil {
+        return "", err
+    }
+
+    // ВАЖНО: кодируем через singjson, чтобы корректно инлайнить варианты Options
+    raw, err := singjson.Marshal(options)
+    if err != nil {
+        return "", err
+    }
+
+    // Красивый вывод (не обязателен для libbox, но удобен для логов)
+    var pretty bytes.Buffer
+    if err := json.Indent(&pretty, raw, "", "  "); err != nil {
+        // на случай, если вдруг indent не вышел — вернём компактный
+        return string(raw), nil
+    }
+    return pretty.String(), nil
 }
 
 // TODO include selectors
