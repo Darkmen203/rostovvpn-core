@@ -17,9 +17,9 @@ import (
 	C "github.com/sagernet/sing-box/constant"
 	"github.com/sagernet/sing-box/option"
 	dns "github.com/sagernet/sing-dns"
+	singjson "github.com/sagernet/sing/common/json"
 	badjson "github.com/sagernet/sing/common/json/badjson"
 	badoption "github.com/sagernet/sing/common/json/badoption"
-	singjson "github.com/sagernet/sing/common/json"
 )
 
 const (
@@ -96,24 +96,24 @@ func normalizeDNSAddress(addr string) string {
 }
 
 func BuildConfigJson(configOpt RostovVPNOptions, input option.Options) (string, error) {
-    options, err := BuildConfig(configOpt, input)
-    if err != nil {
-        return "", err
-    }
+	options, err := BuildConfig(configOpt, input)
+	if err != nil {
+		return "", err
+	}
 
-    // ВАЖНО: кодируем через singjson, чтобы корректно инлайнить варианты Options
-    raw, err := singjson.Marshal(options)
-    if err != nil {
-        return "", err
-    }
+	// ВАЖНО: кодируем через singjson, чтобы корректно инлайнить варианты Options
+	raw, err := singjson.Marshal(options)
+	if err != nil {
+		return "", err
+	}
 
-    // Красивый вывод (не обязателен для libbox, но удобен для логов)
-    var pretty bytes.Buffer
-    if err := json.Indent(&pretty, raw, "", "  "); err != nil {
-        // на случай, если вдруг indent не вышел — вернём компактный
-        return string(raw), nil
-    }
-    return pretty.String(), nil
+	// Красивый вывод (не обязателен для libbox, но удобен для логов)
+	var pretty bytes.Buffer
+	if err := json.Indent(&pretty, raw, "", "  "); err != nil {
+		// на случай, если вдруг indent не вышел — вернём компактный
+		return string(raw), nil
+	}
+	return pretty.String(), nil
 }
 
 // TODO include selectors
@@ -145,7 +145,7 @@ func BuildConfig(opt RostovVPNOptions, input option.Options) (*option.Options, e
 	setInbound(&options, &opt)
 	setDns(&options, &opt)
 	// fmt.Printf("[debug] Region=%q BlockAds=%v EnableDNSRouting=%v ConnTestUrl=%q\n",
-		// opt.Region, opt.BlockAds, opt.EnableDNSRouting, opt.ConnectionTestUrl)
+	// opt.Region, opt.BlockAds, opt.EnableDNSRouting, opt.ConnectionTestUrl)
 	setRoutingOptions(&options, &opt)
 	setFakeDns(&options, &opt)
 	err := setOutbounds(&options, &input, &opt)
@@ -258,6 +258,9 @@ func setOutbounds(options *option.Options, input *option.Options, opt *RostovVPN
 	urlTest.Options.(*option.URLTestOutboundOptions).URL = url
 
 	defaultSelect := urlTest.Tag
+    if len(tags) > 0 {
+        defaultSelect = tags[0]
+    }
 	for _, tag := range tags {
 		if strings.Contains(strings.ToLower(tag), "default") {
 			defaultSelect = tag
@@ -341,86 +344,86 @@ func setLog(options *option.Options, opt *RostovVPNOptions) {
 }
 
 func setInbound(options *option.Options, opt *RostovVPNOptions) {
-    var inboundDomainStrategy option.DomainStrategy
-    if !opt.ResolveDestination {
-        inboundDomainStrategy = option.DomainStrategy(dns.DomainStrategyAsIS)
-    } else {
-        inboundDomainStrategy = opt.IPv6Mode
-    }
+	var inboundDomainStrategy option.DomainStrategy
+	if !opt.ResolveDestination {
+		inboundDomainStrategy = option.DomainStrategy(dns.DomainStrategyAsIS)
+	} else {
+		inboundDomainStrategy = opt.IPv6Mode
+	}
 
-    // TUN поднимаем только при EnableTun
-    if opt.EnableTun {
-        if opt.MTU == 0 || opt.MTU > 2000 {
-            opt.MTU = 1450
-        }
+	// TUN поднимаем только при EnableTun
+	if opt.EnableTun {
+		if opt.MTU == 0 || opt.MTU > 2000 {
+			opt.MTU = 1450
+		}
 
-        // ВАЖНО:
-        // 1) Всегда массив (даже при IPv4-only), иначе Listable сериализуется в строку.
-        // 2) Используем /30 (IPv4) и /126 (IPv6) для p2p — это стабильно на Android/gVisor.
-        addressList := badoption.Listable[netip.Prefix]{
-            netip.MustParsePrefix("172.19.0.1/30"),
-            netip.MustParsePrefix("fdfe:dcba:9876::1/126"),
-        }
+		// ВАЖНО:
+		// 1) Всегда массив (даже при IPv4-only), иначе Listable сериализуется в строку.
+		// 2) Используем /30 (IPv4) и /126 (IPv6) для p2p — это стабильно на Android/gVisor.
+		addressList := badoption.Listable[netip.Prefix]{
+			netip.MustParsePrefix("172.19.0.1/30"),
+			netip.MustParsePrefix("fdfe:dcba:9876::1/126"),
+		}
 
-        tunOptions := &option.TunInboundOptions{
-            Stack:         opt.TUNStack,
-            MTU:           opt.MTU,
-            AutoRoute:     true,
-            StrictRoute:   opt.StrictRoute,
-            Address:       addressList, // ← массив, не скаляр
-            InterfaceName: "RostovVPNTunnel",
-            InboundOptions: option.InboundOptions{
-                SniffEnabled:             true,
-                SniffOverrideDestination: false,
-                DomainStrategy:           inboundDomainStrategy,
-            },
-        }
+		tunOptions := &option.TunInboundOptions{
+			Stack:         opt.TUNStack,
+			MTU:           opt.MTU,
+			AutoRoute:     true,
+			StrictRoute:   opt.StrictRoute,
+			Address:       addressList, // ← массив, не скаляр
+			InterfaceName: "RostovVPNTunnel",
+			InboundOptions: option.InboundOptions{
+				SniffEnabled:             true,
+				SniffOverrideDestination: false,
+				DomainStrategy:           inboundDomainStrategy,
+			},
+		}
 
-        options.Inbounds = append(options.Inbounds, option.Inbound{
-            Type:    C.TypeTun,
-            Tag:     InboundTUNTag,
-            Options: tunOptions,
-        })
-    }
+		options.Inbounds = append(options.Inbounds, option.Inbound{
+			Type:    C.TypeTun,
+			Tag:     InboundTUNTag,
+			Options: tunOptions,
+		})
+	}
 
-    bind := "127.0.0.1"
-    if opt.AllowConnectionFromLAN {
-        bind = "0.0.0.0"
-    }
+	bind := "127.0.0.1"
+	if opt.AllowConnectionFromLAN {
+		bind = "0.0.0.0"
+	}
 
-    mixedOptions := &option.HTTPMixedInboundOptions{
-        ListenOptions: option.ListenOptions{
-            Listen:     addrPtr(bind),
-            ListenPort: opt.MixedPort,
-            InboundOptions: option.InboundOptions{
-                SniffEnabled:             true,
-                SniffOverrideDestination: false, // был true
-                DomainStrategy:           inboundDomainStrategy,
-            },
-        },
-        SetSystemProxy: opt.SetSystemProxy,
-    }
-    options.Inbounds = append(options.Inbounds, option.Inbound{
-        Type:    C.TypeMixed,
-        Tag:     InboundMixedTag,
-        Options: mixedOptions,
-    })
+	mixedOptions := &option.HTTPMixedInboundOptions{
+		ListenOptions: option.ListenOptions{
+			Listen:     addrPtr(bind),
+			ListenPort: opt.MixedPort,
+			InboundOptions: option.InboundOptions{
+				SniffEnabled:             true,
+				SniffOverrideDestination: false, // был true
+				DomainStrategy:           inboundDomainStrategy,
+			},
+		},
+		SetSystemProxy: opt.SetSystemProxy,
+	}
+	options.Inbounds = append(options.Inbounds, option.Inbound{
+		Type:    C.TypeMixed,
+		Tag:     InboundMixedTag,
+		Options: mixedOptions,
+	})
 
-    directDNSOptions := &option.DirectInboundOptions{
-        ListenOptions: option.ListenOptions{
-            Listen:     addrPtr(bind),
-            ListenPort: opt.LocalDnsPort,
-        },
-    }
-    options.Inbounds = append(options.Inbounds, option.Inbound{
-        Type:    C.TypeDirect,
-        Tag:     InboundDNSTag,
-        Options: directDNSOptions,
-    })
+	directDNSOptions := &option.DirectInboundOptions{
+		ListenOptions: option.ListenOptions{
+			Listen:     addrPtr(bind),
+			ListenPort: opt.LocalDnsPort,
+		},
+	}
+	options.Inbounds = append(options.Inbounds, option.Inbound{
+		Type:    C.TypeDirect,
+		Tag:     InboundDNSTag,
+		Options: directDNSOptions,
+	})
 
-    if opt.EnableTunService {
-        ActivateTunnelService(*opt)
-    }
+	if opt.EnableTunService {
+		ActivateTunnelService(*opt)
+	}
 }
 
 func setDns(options *option.Options, opt *RostovVPNOptions) {
@@ -452,6 +455,10 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 	// САМ DoH для остальных доменов — ЧЕРЕЗ ПРОКСИ (select),
 	// иначе при блокировке CF DoH — всё ломается.
 	dnsRemoteDetour := OutboundSelectTag
+
+	if runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService {
+		dnsRemoteDetour = OutboundDirectTag
+	}
 
 	dnsOptions.Servers = []option.DNSServerOptions{
 		// 0) bootstrap UDP → direct
@@ -862,7 +869,7 @@ func newRemoteRuleSet(tag, url string) option.RuleSet {
 		RemoteOptions: option.RemoteRuleSet{
 			URL:            url,
 			UpdateInterval: badoption.Duration(5 * 24 * time.Hour),
-			DownloadDetour: OutboundSelectTag,
+			DownloadDetour: OutboundDirectTag,
 		},
 	}
 }
