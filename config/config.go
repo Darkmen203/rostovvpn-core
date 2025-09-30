@@ -557,7 +557,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 
 	// В TunService НЕ гоним cloudflare-dns.com в direct:
 	// пусть DoH может идти через прокси. Иначе при блокировке CF DoH ломается весь DNS.
-	if !opt.EnableTunService {
+	if !opt.EnableTunService && runtime.GOOS != "android" {
 		routeRules = append(routeRules, newRouteRule(
 			option.RawDefaultRule{Domain: []string{"cloudflare-dns.com"}},
 			OutboundDirectTag,
@@ -710,7 +710,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 
 		// routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{RuleSet: regionTags}, OutboundDirectTag))
 		// dnsRules = append(dnsRules, newDNSRouteRule(option.DefaultDNSRule{RawDefaultDNSRule: option.RawDefaultDNSRule{RuleSet: regionTags}}, DNSDirectTag))
-		if opt.EnableTunService {
+		if opt.EnableTunService || runtime.GOOS == "android" {
 			// 1) По умолчанию (без флагов) оставляем как есть: DNS для RU через прокси-DoH
 			dnsRules = append(dnsRules, newDNSRouteRule(
 				option.DefaultDNSRule{
