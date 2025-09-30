@@ -99,6 +99,7 @@ func BuildConfigJson(configOpt RostovVPNOptions, input option.Options) (string, 
 	if err != nil {
 		return "", err
 	}
+	fmt.Println("[config.BuildConfigJson] !!!\n options=\n", options, "\n !!! [config.BuildConfigJson]")
 	var buffer bytes.Buffer
 	json.NewEncoder(&buffer)
 	encoder := json.NewEncoder(&buffer)
