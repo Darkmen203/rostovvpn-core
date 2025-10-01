@@ -473,7 +473,7 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 		newDNSServer(DNSRemoteTag, pickProxyDNS(opt.RemoteDnsAddress, runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService), remoteResolver, opt.RemoteDnsDomainStrategy, dnsRemoteDetour),
 		// 2) trick‑DoH RethinkDNS → direct, с хостами
 		// newDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", DNSWarpHostsTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
-		newDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", DNSWarpHostsTag, opt.DirectDnsDomainStrategy, ""),
+		newDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", DNSWarpHostsTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
 		// 3) local/system
 		newDNSServer(DNSLocalTag, "local", "", 0, ""),
 	}
@@ -550,10 +550,10 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 
 	routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{Inbound: []string{InboundDNSTag}}, OutboundDNSTag))
 	routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{Port: []uint16{53}}, OutboundDNSTag))
-	routeRules = append(routeRules, newRouteRule(
-		option.RawDefaultRule{Domain: []string{"api.ip.sb", "ipapi.co", "ipinfo.io"}},
-		OutboundDirectTag,
-	))
+	// routeRules = append(routeRules, newRouteRule(
+	// 	option.RawDefaultRule{Domain: []string{"api.ip.sb", "ipapi.co", "ipinfo.io"}},
+	// 	OutboundDirectTag,
+	// ))
 	// DoT (853) блокируем, чтобы Android перестал тащить Private DNS через VPN
 	// и откатился к обычному DNS (53/DoH), который у нас уже настроен.
 	if runtime.GOOS == "android" {
@@ -566,22 +566,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 	if opt.BypassLAN {
 		routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{IPIsPrivate: true}, OutboundBypassTag))
 	}
-
-	// В режиме TUN-сервиса не уводим ничего в direct.
-	// ВСЕГДА: трафик к DoH-хосту идёт напрямую, чтобы бутстрап не зависел от прокси
-	routeRules = append(routeRules, newRouteRule(
-		option.RawDefaultRule{Domain: []string{"sky.rethinkdns.com"}},
-		OutboundDirectTag,
-	))
-
-	// В TunService НЕ гоним cloudflare-dns.com в direct:
-	// пусть DoH может идти через прокси. Иначе при блокировке CF DoH ломается весь DNS.
-	if !opt.EnableTunService && runtime.GOOS != "android" {
-		routeRules = append(routeRules, newRouteRule(
-			option.RawDefaultRule{Domain: []string{"cloudflare-dns.com"}},
-			OutboundDirectTag,
-		))
-	}
+	
 	// DNS для самого DoH-хоста отдаём бутстрапу/hosts (applyStaticIPHosts уже сделал правило dns-warp-hosts),
 	// отдельное DNS-правило здесь не нужно. Если хочешь принудительно — можно так:
 	// dnsRules = append(dnsRules, newDNSRouteRule(
