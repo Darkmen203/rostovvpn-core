@@ -177,7 +177,7 @@ func addForceDirect(options *option.Options, opt *RostovVPNOptions, directDNSDom
 	// На Android/TUN резолв доменов серверов — через UDP bootstrap, чтобы избежать
 	// зависимости от HTTPS-детура на старте. На прочих ОС оставляем trick-DoH.
 	serverTag := DNSTricksDirectTag
-	if runtime.GOOS == "android" || (opt != nil && (opt.EnableTun || opt.EnableTunService)) {
+	if runtime.GOOS == "android" && (opt != nil && (opt.EnableTun || opt.EnableTunService)) {
 		serverTag = DNSBootstrapTag
 	}
 
@@ -305,7 +305,7 @@ func patchOutboundSafe(base option.Outbound, opt RostovVPNOptions, staticIPs map
 			}
 			// На Android/TUN уменьшаем зависимость старта от DNS:
 			// пререзолвим домен основного прокси в IP на этапе сборки конфигурации.
-			if serverDomain != "" && (runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService) {
+			if serverDomain != "" && runtime.GOOS == "android" && (opt.EnableTun || opt.EnableTunService) {
 				if ip := preResolveHostIP(serverDomain); ip != "" {
 					v.Server = ip
 					// SNI (server_name) оставляем как был — handshake останется корректным.
@@ -476,7 +476,7 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 	// ANDROID/TUN: чтобы избежать петли старта (DoH→select, а select ещё не готов),
 	// на Android/TUN отправляем сам DoH напрямую (direct).
 	dnsRemoteDetour := OutboundSelectTag
-	if runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService {
+	if runtime.GOOS == "android" && (opt.EnableTun || opt.EnableTunService) {
 		dnsRemoteDetour = OutboundDirectTag
 	}
 
@@ -572,6 +572,21 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 		routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{IPIsPrivate: true}, OutboundBypassTag))
 	}
 
+	// В режиме TUN-сервиса не уводим ничего в direct.
+	// ВСЕГДА: трафик к DoH-хосту идёт напрямую, чтобы бутстрап не зависел от прокси
+	routeRules = append(routeRules, newRouteRule(
+		option.RawDefaultRule{Domain: []string{"sky.rethinkdns.com"}},
+		OutboundDirectTag,
+	))
+
+	// В TunService НЕ гоним cloudflare-dns.com в direct:
+	// пусть DoH может идти через прокси. Иначе при блокировке CF DoH ломается весь DNS.
+	if !opt.EnableTunService {
+		routeRules = append(routeRules, newRouteRule(
+			option.RawDefaultRule{Domain: []string{"cloudflare-dns.com"}},
+			OutboundDirectTag,
+		))
+	}
 	// DNS для самого DoH-хоста отдаём бутстрапу/hosts (applyStaticIPHosts уже сделал правило dns-warp-hosts),
 	// отдельное DNS-правило здесь не нужно. Если хочешь принудительно — можно так:
 	// dnsRules = append(dnsRules, newDNSRouteRule(
@@ -755,7 +770,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 	}
 	// ANDROID/TUN: авто‑детект интерфейса может давать "no available network interface".
 	// Выключаем его на Android/TUN.
-	shouldAutoDetect := !(runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService)
+	shouldAutoDetect := !(runtime.GOOS == "android" && (opt.EnableTun || opt.EnableTunService))
 	if options.Route == nil {
 		options.Route = &option.RouteOptions{
 			Final:               OutboundMainProxyTag,
@@ -849,7 +864,7 @@ func pickDefaultResolver(opt *RostovVPNOptions) string {
 	// На Android/TUN используем bootstrap (udp 8.8.8.8) как дефолтный резолвер
 	// для внутренних резолвов (включая резолв аутбаундов), чтобы исключить
 	// цикл «dns-remote → select → vless(нужен DNS)» на старте.
-	if opt != nil && (runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService) {
+	if opt != nil && (runtime.GOOS == "android" && (opt.EnableTun || opt.EnableTunService)) {
 		return DNSBootstrapTag
 	}
 	// На прочих ОС оставляем прежнее безопасное значение.
@@ -876,16 +891,21 @@ func legacyDNSServer(tag, address, resolver string, strategy option.DomainStrate
 }
 
 func newRemoteRuleSet(tag, url string) option.RuleSet {
-	return option.RuleSet{
+	remoteRuleset := option.RuleSet{
 		Type:   C.RuleSetTypeRemote,
 		Tag:    tag,
 		Format: C.RuleSetFormatBinary,
 		RemoteOptions: option.RemoteRuleSet{
 			URL:            url,
 			UpdateInterval: badoption.Duration(5 * 24 * time.Hour),
-			DownloadDetour: OutboundDirectTag,
+			DownloadDetour: OutboundSelectTag,
 		},
 	}
+	if runtime.GOOS == "android" {
+		remoteRuleset.RemoteOptions.DownloadDetour = OutboundDirectTag;
+	} 
+	return remoteRuleset
+
 }
 
 func newRouteRule(match option.RawDefaultRule, outbound string) option.Rule {
