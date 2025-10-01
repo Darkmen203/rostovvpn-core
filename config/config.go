@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
-	reflect "reflect"
 	"runtime"
 	"sort"
 	"strings"
@@ -174,6 +173,14 @@ func addForceDirect(options *option.Options, opt *RostovVPNOptions, directDNSDom
 		return
 	}
 	sort.Strings(directDomains)
+
+	// На Android/TUN резолв доменов серверов — через UDP bootstrap, чтобы избежать
+	// зависимости от HTTPS-детура на старте. На прочих ОС оставляем trick-DoH.
+	serverTag := DNSTricksDirectTag
+	if runtime.GOOS == "android" || (opt != nil && (opt.EnableTun || opt.EnableTunService)) {
+		serverTag = DNSBootstrapTag
+	}
+
 	dnsRule := option.DefaultDNSRule{
 		RawDefaultDNSRule: option.RawDefaultDNSRule{
 			Domain: directDomains, // <— массив доменов (например, ["rostovvpn.run.place"])
@@ -181,15 +188,7 @@ func addForceDirect(options *option.Options, opt *RostovVPNOptions, directDNSDom
 		DNSRuleAction: option.DNSRuleAction{
 			Action: C.RuleActionTypeRoute,
 			RouteOptions: option.DNSRouteActionOptions{
-				Server: func() string {
-					if opt != nil && opt.EnableTunService {
-						// В TUN-сервисе для доменов серверов используем
-						// бутстрап-DoH, который НЕ зависит от прокси.
-						return DNSTricksDirectTag
-					}
-					// return DNSDirectTag
-					return DNSTricksDirectTag
-				}(),
+				Server: serverTag,
 			},
 		},
 	}
@@ -309,12 +308,6 @@ func patchOutboundSafe(base option.Outbound, opt RostovVPNOptions, staticIPs map
 			// if v.TLS != nil && v.TLS.UTLS != nil && v.TLS.UTLS.Enabled && v.TLS.UTLS.Fingerprint == "" {
 			//     v.TLS.UTLS.Fingerprint = "random"
 			// }
-
-			// 2) дозвон до сервера — только через direct, чтобы не ловить VPN-loop
-			if v.DialerOptions.Detour == "" {
-				v.DialerOptions.Detour = "" // "direct"
-			}
-
 			// 3) вернуть изменённые options (на случай копирования интерфейса)
 			o.Options = v
 		}
@@ -479,7 +472,8 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 		// 1) proxy‑DoH Cloudflare → detour=select (через прокси), имя резолвим через sky.rethinkdns.com
 		newDNSServer(DNSRemoteTag, pickProxyDNS(opt.RemoteDnsAddress, runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService), remoteResolver, opt.RemoteDnsDomainStrategy, dnsRemoteDetour),
 		// 2) trick‑DoH RethinkDNS → direct, с хостами
-		newDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", DNSWarpHostsTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
+		// newDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", DNSWarpHostsTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
+		newDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", DNSWarpHostsTag, opt.DirectDnsDomainStrategy, ""),
 		// 3) local/system
 		newDNSServer(DNSLocalTag, "local", "", 0, ""),
 	}
@@ -492,8 +486,6 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 	// у DNS-серверов. Чтобы не уронить парсер — ничего не инжектим, но выводим предупреждение,
 	// если флаги включены.
 	warnIfTLSTricksRequestedButUnsupported(opt)
-
-	ensureDNSServerDetour(options, DNSTricksDirectTag, OutboundDirectTag)
 
 	// if ips := getIPs([]string{"www.speedtest.net", "sky.rethinkdns.com"}); len(ips) > 0 {
 	// 	applyStaticIPHosts(options, map[string][]string{"sky.rethinkdns.com": ips})
@@ -861,11 +853,6 @@ func pickDefaultResolver(opt *RostovVPNOptions) string {
 	if opt.DefaultDomainResolver != "" {
 		return opt.DefaultDomainResolver
 	}
-	// В TUN‑сервисе: ВСЕ диалеры (включая серверы выходов) резолвим через bootstrap,
-	// чтобы исключить цикл «dns-remote → select → vless(нужен DNS)».
-	if opt != nil && opt.EnableTunService {
-		return DNSTricksDirectTag
-	}
 	// На Android/TUN используем bootstrap (udp 8.8.8.8) как дефолтный резолвер
 	// для внутренних резолвов (включая резолв аутбаундов), чтобы исключить
 	// цикл «dns-remote → select → vless(нужен DNS)» на старте.
@@ -1141,33 +1128,4 @@ func pickProxyDNS(addr string, tunService bool) string {
 		}
 	}
 	return a
-}
-
-// ensureDNSServerDetour ставит detour для DNS-сервера с нужным tag,
-// не привязываясь к конкретным типам опций (работает через reflection).
-func ensureDNSServerDetour(options *option.Options, tag, detour string) {
-	if options == nil || options.DNS == nil || detour == "" || tag == "" {
-		return
-	}
-	for i := range options.DNS.Servers {
-		if options.DNS.Servers[i].Tag != tag {
-			continue
-		}
-		// Опции обычно pointer на структуру; аккуратно достаём и правим поле Detour, если оно есть.
-		optIface := options.DNS.Servers[i].Options
-		rv := reflect.ValueOf(optIface)
-		if rv.Kind() != reflect.Ptr || rv.IsNil() {
-			continue
-		}
-		elem := rv.Elem()
-		if !elem.IsValid() || elem.Kind() != reflect.Struct {
-			continue
-		}
-		f := elem.FieldByName("Detour")
-		if f.IsValid() && f.CanSet() && f.Kind() == reflect.String && f.String() == "" {
-			f.SetString(detour)
-			// интерфейс уже указывает на ту же область памяти, но на всякий случай пере-присвоим
-			options.DNS.Servers[i].Options = optIface
-		}
-	}
 }
