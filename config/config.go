@@ -458,21 +458,19 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 	// --- DNS-REMOTE (DoH) ---
 	// имя DoH-хоста (cloudflare-dns.com) резолвим через "трик‑DoH" (sky.rethinkdns.com)
 	remoteResolver := DNSTricksDirectTag
-	// САМ DoH для остальных доменов — ЧЕРЕЗ ПРОКСИ (select),
-	// иначе при блокировке CF DoH — всё ломается.
+	// ANDROID/TUN: чтобы избежать петли старта (DoH→select, а select ещё не готов),
+	// на Android/TUN отправляем сам DoH напрямую (direct).
 	dnsRemoteDetour := OutboundSelectTag
-
-	if opt.EnableTunService {
+	if runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService {
 		dnsRemoteDetour = OutboundDirectTag
 	}
 
 	dnsOptions.Servers = []option.DNSServerOptions{
-		// 0) bootstrap UDP → direct
+		// 0) bootstrap UDP → direct (всегда)
 		newDNSServer(DNSBootstrapTag, bootstrap, DNSLocalTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
-		// 1) proxy‑DoH Cloudflare → detour=select (через прокси), имя резолвим через sky.rethinkdns.com
+		// 1) DoH Cloudflare; ANDROID/TUN: detour=direct (см. выше)
 		newDNSServer(DNSRemoteTag, pickProxyDNS(opt.RemoteDnsAddress, runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService), remoteResolver, opt.RemoteDnsDomainStrategy, dnsRemoteDetour),
 		// 2) trick‑DoH RethinkDNS → direct, с хостами
-		// newDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", DNSWarpHostsTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
 		newDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", DNSWarpHostsTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
 		// 3) local/system
 		newDNSServer(DNSLocalTag, "local", "", 0, ""),
@@ -545,7 +543,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 			Inbound:     []string{InboundTUNTag},
 			PackageName: []string{"app.rostovvpn.com"},
 		}
-		routeRules = append(routeRules, newRouteRule(match, OutboundBypassTag))
+		routeRules = append(routeRules, newRouteRule(match, OutboundSelectTag))
 	}
 
 	routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{Inbound: []string{InboundDNSTag}}, OutboundDNSTag))
@@ -566,7 +564,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 	if opt.BypassLAN {
 		routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{IPIsPrivate: true}, OutboundBypassTag))
 	}
-	
+
 	// DNS для самого DoH-хоста отдаём бутстрапу/hosts (applyStaticIPHosts уже сделал правило dns-warp-hosts),
 	// отдельное DNS-правило здесь не нужно. Если хочешь принудительно — можно так:
 	// dnsRules = append(dnsRules, newDNSRouteRule(
@@ -748,10 +746,13 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 			))
 		}
 	}
+	// ANDROID/TUN: авто‑детект интерфейса может давать "no available network interface".
+	// Выключаем его на Android/TUN.
+	shouldAutoDetect := !(runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService)
 	if options.Route == nil {
 		options.Route = &option.RouteOptions{
 			Final:               OutboundMainProxyTag,
-			AutoDetectInterface: true,
+			AutoDetectInterface: shouldAutoDetect,
 			OverrideAndroidVPN:  runtime.GOOS == "android",
 			DefaultDomainResolver: &option.DomainResolveOptions{
 				Server: pickDefaultResolver(opt),
@@ -761,7 +762,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 		if options.Route.Final == "" {
 			options.Route.Final = OutboundMainProxyTag
 		}
-		options.Route.AutoDetectInterface = true
+		options.Route.AutoDetectInterface = shouldAutoDetect
 		options.Route.OverrideAndroidVPN = runtime.GOOS == "android"
 		if options.Route.DefaultDomainResolver == nil {
 			options.Route.DefaultDomainResolver = &option.DomainResolveOptions{Server: pickDefaultResolver(opt)}
