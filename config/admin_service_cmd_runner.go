@@ -3,47 +3,121 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
 func ExecuteCmd(executablePath string, background bool, args ...string) (string, error) {
 	cwd := filepath.Dir(executablePath)
+
+	// AppImage: оставляем вашу семантику
 	if appimage := os.Getenv("APPIMAGE"); appimage != "" {
 		executablePath = appimage
 		if !background {
-			return "Fail", fmt.Errorf("Appimage cannot have service")
+			return "Fail", fmt.Errorf("AppImage cannot have service")
 		}
 	}
 
-	commands := [][]string{
-		{"cocoasudo", "--prompt=RostovVPN needs root for tunneling.", executablePath},
-		{"gksu", executablePath},
-		{"pkexec", executablePath},
-		{"xterm", "-e", "sudo", executablePath, strings.Join(args, " ")},
-		{"sudo", executablePath},
-	}
-
-	var err error
-	var cmd *exec.Cmd
-	for _, command := range commands {
-		cmd = exec.Command(command[0], command[1:]...)
+	tryRun := func(cmdline []string) error {
+		if len(cmdline) == 0 {
+			return errors.New("empty command")
+		}
+		cmd := exec.Command(cmdline[0], cmdline[1:]...)
 		cmd.Dir = cwd
+		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		fmt.Printf("Running command: %v\n", command)
+		fmt.Printf("Running command: %v\n", cmdline)
 		if background {
-			err = cmd.Start()
-		} else {
-			err = cmd.Run()
+			return cmd.Start()
 		}
-		if err == nil {
+		return cmd.Run()
+	}
+
+	// Собираем команды по платформе
+	var candidates [][]string
+	switch runtime.GOOS {
+	case "darwin":
+		// 1) Нативная эскалация через AppleScript (GUI prompt)
+		// do shell script "...</escaped...>" with administrator privileges
+		esc := func(s string) string { return strings.ReplaceAll(s, `"`, `\"`) }
+		full := append([]string{executablePath}, args...)
+		// Команду исполним через sh -c, чтобы проще экранировать аргументы
+		shCmd := "exec " + shellJoin(full)
+		osascript := []string{"/usr/bin/osascript", "-e",
+			fmt.Sprintf(`do shell script "%s" with administrator privileges prompt "RostovVPN needs root for tunneling."`, esc(shCmd)),
+		}
+		candidates = append(candidates, osascript)
+
+		// 2) Если есть cocoasudo — тоже ок
+		candidates = append(candidates, append([]string{"cocoasudo", "--prompt=RostovVPN needs root for tunneling.", executablePath}, args...))
+
+		// 3) sudo с askpass (если задан SUDO_ASKPASS)
+		if os.Getenv("SUDO_ASKPASS") != "" {
+			candidates = append(candidates, append([]string{"sudo", "-A", executablePath}, args...))
+		}
+		// 4) обычный sudo (TTY)
+		candidates = append(candidates, append([]string{"sudo", executablePath}, args...))
+
+	default: // linux и прочее unix
+		// 1) pkexec (polkit GUI)
+		candidates = append(candidates, append([]string{"pkexec", executablePath}, args...))
+		// 2) sudo -A (GUI askpass, если есть)
+		if os.Getenv("SUDO_ASKPASS") != "" {
+			candidates = append(candidates, append([]string{"sudo", "-A", executablePath}, args...))
+		}
+		// 3) обычный sudo
+		candidates = append(candidates, append([]string{"sudo", executablePath}, args...))
+		// 4) графические фронтенды (устаревшие, но иногда встречаются)
+		candidates = append(candidates, append([]string{"gksudo", executablePath}, args...))
+		candidates = append(candidates, append([]string{"kdesu", executablePath}, args...))
+		// 5) xterm → sudo (на минимальных окружениях)
+		candidates = append(candidates, []string{"xterm", "-e", "sudo", shellJoin(append([]string{executablePath}, args...))})
+	}
+
+	var lastErr error
+	for _, c := range candidates {
+		// Пропускаем варианты, которых нет в $PATH (кроме абсолютных путей)
+		if !strings.HasPrefix(c[0], "/") {
+			if _, err := exec.LookPath(c[0]); err != nil {
+				lastErr = err
+				continue
+			}
+		}
+		if err := tryRun(c); err == nil {
 			return "Ok", nil
+		} else {
+			lastErr = err
 		}
 	}
 
-	return "", fmt.Errorf("Error executing run as root shell command")
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no elevation candidate executed")
+	}
+	return "", fmt.Errorf("failed to acquire admin rights: %w", lastErr)
+}
+
+// shellJoin аккуратно собирает команду/аргументы в одну строку для sh -c
+// с безопасным экранированием пробелов и кавычек.
+func shellJoin(parts []string) string {
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p == "" {
+			out = append(out, "''")
+			continue
+		}
+		// Экранируем одиночные кавычки: ' -> '\''  (POSIX способ)
+		if strings.IndexByte(p, '\'') >= 0 {
+			p = "'" + strings.ReplaceAll(p, "'", `'\''`) + "'"
+		} else if strings.ContainsAny(p, " \t\n\\\"$`") {
+			p = "'" + p + "'"
+		}
+		out = append(out, p)
+	}
+	return strings.Join(out, " ")
 }
