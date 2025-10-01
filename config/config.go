@@ -303,6 +303,14 @@ func patchOutboundSafe(base option.Outbound, opt RostovVPNOptions, staticIPs map
 			if v.Server != "" && net.ParseIP(v.Server) == nil {
 				serverDomain = v.Server
 			}
+			// На Android/TUN уменьшаем зависимость старта от DNS:
+			// пререзолвим домен основного прокси в IP на этапе сборки конфигурации.
+			if serverDomain != "" && (runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService) {
+				if ip := preResolveHostIP(serverDomain); ip != "" {
+					v.Server = ip
+					// SNI (server_name) оставляем как был — handshake останется корректным.
+				}
+			}
 			// тут при желании можно что-то чуть-чуть «доподкрутить», не меняя типы
 			// например:
 			// if v.TLS != nil && v.TLS.UTLS != nil && v.TLS.UTLS.Enabled && v.TLS.UTLS.Fingerprint == "" {
@@ -385,6 +393,13 @@ func setInbound(options *option.Options, opt *RostovVPNOptions) {
 			},
 		}
 
+		// Android-специфика: не захватываем трафик своего приложения
+		// и не «бетонируем» маршруты — прямые сокеты смогут найти маршрут.
+		if runtime.GOOS == "android" {
+			tunOptions.StrictRoute = false
+			tunOptions.ExcludePackage = badoption.Listable[string]{"app.rostovvpn.com"}
+		}
+
 		options.Inbounds = append(options.Inbounds, option.Inbound{
 			Type:    C.TypeTun,
 			Tag:     InboundTUNTag,
@@ -456,23 +471,17 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 		bootstrap = "udp://8.8.8.8:53"
 	}
 	// --- DNS-REMOTE (DoH) ---
-	// имя DoH-хоста (cloudflare-dns.com) резолвим через "трик‑DoH" (sky.rethinkdns.com)
-	remoteResolver := DNSTricksDirectTag
-	// ANDROID/TUN: чтобы избежать петли старта (DoH→select, а select ещё не готов),
-	// на Android/TUN отправляем сам DoH напрямую (direct).
+	// Теперь DoH всегда уходит через ПРОКСИ (select),
+	// а резолв самого DoH‑хоста делаем через hosts (DNSWarpHostsTag), без выхода в сеть.
 	dnsRemoteDetour := OutboundSelectTag
-	if runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService {
-		dnsRemoteDetour = OutboundDirectTag
-	}
+	remoteResolver := DNSWarpHostsTag
 
 	dnsOptions.Servers = []option.DNSServerOptions{
-		// 0) bootstrap UDP → direct (всегда)
+		// 0) bootstrap UDP → direct (как запасной)
 		newDNSServer(DNSBootstrapTag, bootstrap, DNSLocalTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
-		// 1) DoH Cloudflare; ANDROID/TUN: detour=direct (см. выше)
+		// 1) proxy‑DoH Cloudflare → detour=select, имя резолвим через hosts
 		newDNSServer(DNSRemoteTag, pickProxyDNS(opt.RemoteDnsAddress, runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService), remoteResolver, opt.RemoteDnsDomainStrategy, dnsRemoteDetour),
-		// 2) trick‑DoH RethinkDNS → direct, с хостами
-		newDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", DNSWarpHostsTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
-		// 3) local/system
+		// 2) local/system
 		newDNSServer(DNSLocalTag, "local", "", 0, ""),
 	}
 	options.DNS = dnsOptions
@@ -537,14 +546,6 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 	dnsRules := make([]option.DNSRule, 0)
 	routeRules := make([]option.Rule, 0)
 	rulesets := make([]option.RuleSet, 0)
-
-	if opt.EnableTun && runtime.GOOS == "android" {
-		match := option.RawDefaultRule{
-			Inbound:     []string{InboundTUNTag},
-			PackageName: []string{"app.rostovvpn.com"},
-		}
-		routeRules = append(routeRules, newRouteRule(match, OutboundSelectTag))
-	}
 
 	routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{Inbound: []string{InboundDNSTag}}, OutboundDNSTag))
 	routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{Port: []uint16{53}}, OutboundDNSTag))
@@ -839,13 +840,11 @@ func pickDefaultResolver(opt *RostovVPNOptions) string {
 	if opt.DefaultDomainResolver != "" {
 		return opt.DefaultDomainResolver
 	}
-	// На Android/TUN используем bootstrap (udp 8.8.8.8) как дефолтный резолвер
-	// для внутренних резолвов (включая резолв аутбаундов), чтобы исключить
-	// цикл «dns-remote → select → vless(нужен DNS)» на старте.
+	// На Android/TUN безопаснее стартовать через прокси‑DoH,
+	// поэтому дефолтный резолвер оставим «hosts/bootstrap» только как запасной.
 	if opt != nil && (runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService) {
 		return DNSBootstrapTag
 	}
-	// На прочих ОС оставляем прежнее безопасное значение.
 	return DNSTricksDirectTag
 }
 func legacyDNSServer(tag, address, resolver string, strategy option.DomainStrategy, detour string) option.DNSServerOptions {
@@ -1105,13 +1104,26 @@ func generateRandomString(length int) string {
 func pickProxyDNS(addr string, tunService bool) string {
 	a := normalizeDNSAddress(addr)
 	low := strings.ToLower(a)
-	if tunService {
-		// fmt.Println("[pickProxyDNS] !!! tunService\n", tunService, "\na=\n", a, "\n", a == "" || strings.HasPrefix(low, "udp://") || strings.HasPrefix(low, "tls://"), "\n !!! [pickProxyDNS]")
 
-		if a == "" || strings.HasPrefix(low, "udp://") || strings.HasPrefix(low, "tls://") {
-			// Prefer DoH in TUN-service mode: Cloudflare endpoint works reliably over HTTPS
-			return "https://cloudflare-dns.com/dns-query"
-		}
+	// В Android/TUN обязательно DoH, чтобы не зависеть от прямого UDP на старте
+	if tunService && (a == "" || strings.HasPrefix(low, "udp://") || strings.HasPrefix(low, "tls://")) {
+		return "https://cloudflare-dns.com/dns-query"
 	}
 	return a
+}
+
+// Простой системный резолв домена в IPv4 (для Android старта без DNS внутри box)
+func preResolveHostIP(host string) string {
+	ips, err := net.LookupHost(host)
+	if err != nil || len(ips) == 0 {
+		return ""
+	}
+	// предпочитаем v4
+	for _, ip := range ips {
+		if parsed := net.ParseIP(ip); parsed != nil && parsed.To4() != nil {
+			return ip
+		}
+	}
+	// иначе — любой
+	return ips[0]
 }
