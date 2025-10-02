@@ -303,14 +303,7 @@ func patchOutboundSafe(base option.Outbound, opt RostovVPNOptions, staticIPs map
 			if v.Server != "" && net.ParseIP(v.Server) == nil {
 				serverDomain = v.Server
 			}
-			// На Android/TUN уменьшаем зависимость старта от DNS:
-			// пререзолвим домен основного прокси в IP на этапе сборки конфигурации.
-			if serverDomain != "" && runtime.GOOS == "android" && (opt.EnableTun || opt.EnableTunService) {
-				if ip := preResolveHostIP(serverDomain); ip != "" {
-					v.Server = ip
-					// SNI (server_name) оставляем как был — handshake останется корректным.
-				}
-			}
+
 			if v.TLS != nil && v.TLS.ServerName == "www.github.com"{
 				v.TLS.ServerName = "github.com"
 			}
@@ -1144,20 +1137,4 @@ func pickProxyDNS(addr string, tunService bool) string {
 		}
 	}
 	return a
-}
-
-// Простой системный резолв домена в IPv4 (для Android старта без DNS внутри box)
-func preResolveHostIP(host string) string {
-	ips, err := net.LookupHost(host)
-	if err != nil || len(ips) == 0 {
-		return ""
-	}
-	// предпочитаем v4
-	for _, ip := range ips {
-		if parsed := net.ParseIP(ip); parsed != nil && parsed.To4() != nil {
-			return ip
-		}
-	}
-	// иначе — любой
-	return ips[0]
 }
