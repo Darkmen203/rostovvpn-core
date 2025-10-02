@@ -311,6 +311,9 @@ func patchOutboundSafe(base option.Outbound, opt RostovVPNOptions, staticIPs map
 					// SNI (server_name) оставляем как был — handshake останется корректным.
 				}
 			}
+			if v.TLS != nil && v.TLS.ServerName == "www.github.com"{
+				v.TLS.ServerName = "github.com"
+			}
 			// тут при желании можно что-то чуть-чуть «доподкрутить», не меняя типы
 			// например:
 			// if v.TLS != nil && v.TLS.UTLS != nil && v.TLS.UTLS.Enabled && v.TLS.UTLS.Fingerprint == "" {
