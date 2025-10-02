@@ -14,6 +14,7 @@ type RostovVPNOptions struct {
 	ClashApiSecret          string `json:"web-secret"`
 	Region                  string `json:"region"`
 	BlockAds                bool   `json:"block-ads"`
+	PerAppProxyMode         string   `json:"per_app_proxy_mode"`
 	UseXrayCoreWhenPossible bool   `json:"use-xray-core-when-possible"`
 	// GeoIPPath        string      `json:"geoip-path"`
 	// GeoSitePath      string      `json:"geosite-path"`
@@ -144,6 +145,7 @@ func DefaultRostovVPNOptions() *RostovVPNOptions {
 			MaxStreams: 8,
 			Protocol:   "h2mux",
 		},
+		PerAppProxyMode: "off",
 		TLSTricks: TLSTricks{
 			EnableFragment: false,
 			FragmentSize:   "10-100",

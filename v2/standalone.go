@@ -343,6 +343,12 @@ func applyFlutterPrefs(raw map[string]any, opt *config.RostovVPNOptions) {
 		opt.BlockAds = v
 	}
 
+	// --- Раздельное проксимирование ---
+
+	if v := str(raw, "flutter.per_app_proxy_mode"); v != "" {
+			opt.PerAppProxyMode = v
+	}
+
 	// --- Connection test URL ---
 	if v := str(raw, "flutter.connection-test-url"); v != "" {
 		vv := strings.TrimSpace(v)

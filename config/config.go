@@ -778,7 +778,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 		options.Route = &option.RouteOptions{
 			Final:               OutboundMainProxyTag,
 			AutoDetectInterface: shouldAutoDetect,
-			OverrideAndroidVPN:  runtime.GOOS == "android",
+			OverrideAndroidVPN:  runtime.GOOS == "android" && opt.PerAppProxyMode == "off",
 			DefaultDomainResolver: &option.DomainResolveOptions{
 				Server: pickDefaultResolver(opt),
 			},
@@ -788,7 +788,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 			options.Route.Final = OutboundMainProxyTag
 		}
 		options.Route.AutoDetectInterface = shouldAutoDetect
-		options.Route.OverrideAndroidVPN = runtime.GOOS == "android"
+		options.Route.OverrideAndroidVPN = runtime.GOOS == "android" && opt.PerAppProxyMode == "off"
 		if options.Route.DefaultDomainResolver == nil {
 			options.Route.DefaultDomainResolver = &option.DomainResolveOptions{Server: pickDefaultResolver(opt)}
 		} else if options.Route.DefaultDomainResolver.Server == "" {

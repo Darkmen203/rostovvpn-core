@@ -48,6 +48,7 @@ func RunInstance(rostovVPNSettings *config.RostovVPNOptions, singconfig *option.
 	rostovVPNSettings.InboundOptions.LocalDnsPort = 0
 	rostovVPNSettings.Region = "other"
 	rostovVPNSettings.BlockAds = false
+	rostovVPNSettings.PerAppProxyMode = "off"
 	rostovVPNSettings.LogFile = "/dev/null"
 
 	finalConfigs, err := config.BuildConfig(*rostovVPNSettings, *singconfig)
