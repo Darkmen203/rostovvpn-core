@@ -3,30 +3,48 @@ package v2
 import (
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/kardianos/service"
+	"google.golang.org/grpc"
 )
 
 var logger service.Logger
 
-type rostovvpnNext struct{}
+type rostovvpnNext struct {
+	srv *grpc.Server
+}
 
 var port int = 18020
 
 func (m *rostovvpnNext) Start(s service.Service) error {
-	_, err := StartTunnelGrpcServer(fmt.Sprintf("127.0.0.1:%d", port))
-	return err
+	srv, err := StartTunnelGrpcServer(fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		return err
+	}
+	m.srv = srv
+	return nil
 }
 
 func (m *rostovvpnNext) Stop(s service.Service) error {
-	_, err := Stop()
-	if err != nil {
-		return nil
+	// 1) остановить ядро (Box/TUN/маршруты)
+	_, _ = Stop()
+	time.Sleep(150 * time.Millisecond)
+
+	// 2) корректно погасить gRPC-сервер, чтобы освободить 18020
+	if m.srv != nil {
+		done := make(chan struct{})
+		go func() { m.srv.GracefulStop(); close(done) }()
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			m.srv.Stop() // жёстко
+		}
+		m.srv = nil
 	}
-	// Stop should not block. Return with a few seconds.
-	// <-time.After(time.Second * 1)
 	return nil
 }
 
@@ -43,18 +61,27 @@ func getCurrentExecutableDirectory() string {
 }
 
 func StartTunnelService(goArg string) (int, string) {
-    svcConfig := &service.Config{
-        Name:        "RostovVPNTunnelService",
-        DisplayName: "RostovVPN Tunnel Service",
-        Arguments:   []string{"tunnel", "run"},
-        Description: "This is a bridge for tunnel",
+	svcConfig := &service.Config{
+		Name:        "RostovVPNTunnelService",
+		DisplayName: "RostovVPN Tunnel Service",
+		Arguments:   []string{"tunnel", "run"},
+		Description: "This is a bridge for tunnel",
 		Option: map[string]interface{}{
 			"RunAtLoad":        true,
 			"WorkingDirectory": getCurrentExecutableDirectory(),
 		},
 	}
 
-    prg := &rostovvpnNext{}
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+
+	// ВАЖНО: короткое замыкание по занятому порту — только для интентов "start" или пустого (ручной старт)
+	if goArg == "" || goArg == "start" {
+		if isPortBusy(addr, 500*time.Millisecond) {
+			return 0, "Tunnel Service already running (port busy)"
+		}
+	}
+
+	prg := &rostovvpnNext{}
 	s, err := service.New(prg, svcConfig)
 	if err != nil {
 		// log.Printf("Error: %v", err)
@@ -144,4 +171,13 @@ func control(s service.Service, goArg string) (int, string) {
 		}
 		return 2, out
 	}
+}
+
+func isPortBusy(addr string, timeout time.Duration) bool {
+	conn, err := net.DialTimeout("tcp", addr, timeout)
+	if err == nil {
+		_ = conn.Close()
+		return true
+	}
+	return false
 }
