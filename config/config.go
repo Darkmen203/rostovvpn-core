@@ -304,7 +304,7 @@ func patchOutboundSafe(base option.Outbound, opt RostovVPNOptions, staticIPs map
 				serverDomain = v.Server
 			}
 
-			if v.TLS != nil && v.TLS.ServerName == "www.github.com"{
+			if v.TLS != nil && v.TLS.ServerName == "www.github.com" {
 				v.TLS.ServerName = "github.com"
 			}
 			// тут при желании можно что-то чуть-чуть «доподкрутить», не меняя типы
@@ -555,9 +555,18 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 	// 	option.RawDefaultRule{Domain: []string{"api.ip.sb", "ipapi.co", "ipinfo.io"}},
 	// 	OutboundDirectTag,
 	// ))
-	// DoT (853) блокируем, чтобы Android перестал тащить Private DNS через VPN
-	// и откатился к обычному DNS (53/DoH), который у нас уже настроен.
+	// ANDROID: Разрешаем DoT (853) к приватным IP (в т.ч. 172.19.0.2 — peer TUN DNS),
+	// чтобы системный Private DNS не ломал старт, а всё остальное по 853 блокируем.
 	if runtime.GOOS == "android" {
+		// 1) allow: 853 к приватным адресам (RFC1918, сюда попадает 172.19.0.2)
+		routeRules = append(routeRules, newRouteRule(
+			option.RawDefaultRule{
+				IPIsPrivate: true,
+				Port:        []uint16{853},
+			},
+			OutboundDirectTag,
+		))
+		// 2) block: все остальные 853
 		routeRules = append(routeRules, newRouteRule(
 			option.RawDefaultRule{Port: []uint16{853}},
 			OutboundBlockTag,
@@ -898,8 +907,8 @@ func newRemoteRuleSet(tag, url string) option.RuleSet {
 		},
 	}
 	if runtime.GOOS == "android" {
-		remoteRuleset.RemoteOptions.DownloadDetour = OutboundDirectTag;
-	} 
+		remoteRuleset.RemoteOptions.DownloadDetour = OutboundDirectTag
+	}
 	return remoteRuleset
 
 }
