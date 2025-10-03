@@ -393,7 +393,10 @@ func setInbound(options *option.Options, opt *RostovVPNOptions) {
 		// и не «бетонируем» маршруты — прямые сокеты смогут найти маршрут.
 		if runtime.GOOS == "android" {
 			// tunOptions.StrictRoute = false
-			tunOptions.ExcludePackage = badoption.Listable[string]{"app.rostovvpn.com"}
+			tunOptions.ExcludePackage = badoption.Listable[string]{
+				"com.rostovvpn.rostovvpn",
+				"app.rostovvpn.com",
+			}
 		}
 
 		options.Inbounds = append(options.Inbounds, option.Inbound{
@@ -467,13 +470,14 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 		bootstrap = "udp://8.8.8.8:53"
 	}
 	// --- DNS-REMOTE (DoH) ---
-	// имя DoH-хоста (cloudflare-dns.com) резолвим через "трик‑DoH" (sky.rethinkdns.com)
+	// ANDROID/TUN: не полагаемся на sky.rethinkdns.com — резолвим DoH-хост через UDP bootstrap,
+	// а сам DoH шлём ЧЕРЕЗ ПРОКСИ (после старта), чтобы обойти DPI.
 	remoteResolver := DNSTricksDirectTag
-	// ANDROID/TUN: чтобы избежать петли старта (DoH→select, а select ещё не готов),
-	// на Android/TUN отправляем сам DoH напрямую (direct).
 	dnsRemoteDetour := OutboundSelectTag
+
 	if runtime.GOOS == "android" && (opt.EnableTun || opt.EnableTunService) {
-		dnsRemoteDetour = OutboundDirectTag
+		remoteResolver = DNSBootstrapTag    // <— КЛЮЧЕВОЕ: резолв cloudflare-dns.com через UDP 8.8.8.8
+		dnsRemoteDetour = OutboundSelectTag // <— DoH идёт через прокси, а не напрямую
 	}
 
 	dnsOptions.Servers = []option.DNSServerOptions{
@@ -482,9 +486,14 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 		// 1) DoH Cloudflare; ANDROID/TUN: detour=direct (см. выше)
 		newDNSServer(DNSRemoteTag, pickProxyDNS(opt.RemoteDnsAddress, runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService), remoteResolver, opt.RemoteDnsDomainStrategy, dnsRemoteDetour),
 		// 2) trick‑DoH RethinkDNS → direct, с хостами
-		newDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", DNSWarpHostsTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
+		// newDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", DNSWarpHostsTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
 		// 3) local/system
 		newDNSServer(DNSLocalTag, "local", "", 0, ""),
+	}
+	if !(runtime.GOOS == "android" && (opt.EnableTun || opt.EnableTunService)) {
+		dnsOptions.Servers = append(dnsOptions.Servers,
+			newDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", DNSWarpHostsTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
+		)
 	}
 	options.DNS = dnsOptions
 	// fmt.Println("[setDns] !!! \n", dnsOptions, "\n !!! [setDns]")
@@ -586,7 +595,8 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 
 	// В TunService НЕ гоним cloudflare-dns.com в direct:
 	// пусть DoH может идти через прокси. Иначе при блокировке CF DoH ломается весь DNS.
-	if !opt.EnableTunService {
+	// Не форсим прямой доступ к cloudflare-dns.com на Android/TUN — пусть DoH идёт через прокси.
+	if !opt.EnableTunService && !(runtime.GOOS == "android" && (opt.EnableTun || opt.EnableTunService)) {
 		routeRules = append(routeRules, newRouteRule(
 			option.RawDefaultRule{Domain: []string{"cloudflare-dns.com"}},
 			OutboundDirectTag,
