@@ -13,13 +13,14 @@ import (
 	"github.com/sagernet/sing-box/option"
 	dns "github.com/sagernet/sing-dns"
 	grpc "google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
+	serviceURL    = "http://localhost:18020"
 	targetIP      = "127.0.0.1:18020"
+	startEndpoint = "/start"
+	stopEndpoint  = "/stop"
 )
-const logDidNotConnect = "did not connect: %v"
 
 var tunnelServiceRunning = false
 
@@ -27,15 +28,11 @@ func isSupportedOS() bool {
 	return runtime.GOOS == "windows" || runtime.GOOS == "linux"
 }
 
+// Быстрый тест «жив ли сервис»: пробуем короткий gRPC dial.
 func isServiceListening() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Millisecond)
 	defer cancel()
-	conn, err := grpc.DialContext(
-		ctx,
-		targetIP,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
-	)
+	conn, err := grpc.DialContext(ctx, targetIP, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		return false
 	}
@@ -65,46 +62,25 @@ func ActivateTunnelService(opt RostovVPNOptions) (bool, error) {
 }
 
 func DeactivateTunnelServiceForce() (bool, error) {
-	// сначала мягко
-	_, _ = stopTunnelRequest()
-
-	// затем жёстко по ОС
-	switch runtime.GOOS {
-	case "windows":
-		// остановить сервис и добить зависший CLI
-		_, _ = ExecuteCmd(getTunnelServicePath(), true, "tunnel", "stop")
-		_, _ = ExecuteCmd("cmd.exe", true, "/C", "sc stop RostovVPNTunnelService")
-		_, _ = ExecuteCmd("cmd.exe", true, "/C", "taskkill /IM RostovVPNCli.exe /T /F")
-	case "darwin":
-		_, _ = ExecuteCmd("bash", true, "-lc", "launchctl bootout system /Library/LaunchDaemons/com.rostovvpn.cli.plist 2>/dev/null || true")
-		_, _ = ExecuteCmd("bash", true, "-lc", "launchctl bootout gui/$UID ~/Library/LaunchAgents/com.rostovvpn.cli.plist 2>/dev/null || true")
-		_, _ = ExecuteCmd("bash", true, "-lc", "pkill -f RostovVPNCli || true")
-	case "linux":
-		_, _ = ExecuteCmd("bash", true, "-lc", "pkill -f RostovVPNCli || true")
-		// если знаешь точное имя интерфейса — прибери:
-		_, _ = ExecuteCmd("bash", true, "-lc", "ip link del rostovvpn0 2>/dev/null || true")
-	}
-
-	// подождать освобождения порта до 2 сек
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if !isServiceListening() {
-			return true, nil
-		}
-		time.Sleep(150 * time.Millisecond)
-	}
-	// даже если порт ещё занят — возвращаем false/err для корректного UX
-	return !isServiceListening(), nil
+	return stopTunnelRequest()
 }
 
 func DeactivateTunnelService() (bool, error) {
-	// мягко, best-effort
-	ok, err := stopTunnelRequest()
-	if err != nil {
-		// не считаем это критической ошибкой — UI может потом сделать force
-		return false, err
+	// if !isSupportedOS() {
+	// 	return true, nil
+	// }
+
+	if tunnelServiceRunning {
+		res, err := stopTunnelRequest()
+		if err != nil {
+			tunnelServiceRunning = false
+		}
+		return res, err
+	} else {
+		go stopTunnelRequest()
 	}
-	return ok, nil
+
+	return true, nil
 }
 
 func startTunnelRequestWithFailover(opt RostovVPNOptions, installService bool) {
@@ -136,9 +112,9 @@ func startTunnelRequest(opt RostovVPNOptions, installService bool) (bool, error)
 
 	ctxDial, cancelDial := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancelDial()
-	conn, err := grpc.DialContext(ctxDial, targetIP, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+	conn, err := grpc.DialContext(ctxDial, targetIP, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
-		log.Printf(logDidNotConnect, err)
+		log.Printf("did not connect: %v", err)
 		if installService {
 			// Попробуем перезапустить сервис, если внезапно перестал отвечать
 			_, _ = ExitTunnelService()
@@ -173,97 +149,67 @@ func startTunnelRequest(opt RostovVPNOptions, installService bool) (bool, error)
 }
 
 func stopTunnelRequest() (bool, error) {
-	ctxDial, cancelDial := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancelDial := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancelDial()
-
-	conn, err := grpc.DialContext(
-		ctxDial,
-		targetIP,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
-	)
+	conn, err := grpc.DialContext(ctx, targetIP, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
-		log.Printf(logDidNotConnect, err)
+		log.Printf("did not connect: %v", err)
 		return false, err
 	}
 	defer conn.Close()
-
 	c := pb.NewTunnelServiceClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err = c.Stop(ctx, &pb.Empty{})
+	res, err := c.Stop(ctx, &pb.Empty{})
 	if err != nil {
-		// разовое повторение с новым контекстом
-		ctx2, cancel2 := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel2()
-		_, err2 := c.Stop(ctx2, &pb.Empty{})
-		if err2 != nil {
-			log.Printf("stop failed: %v / retry: %v", err, err2)
-			return false, err2
-		}
+		log.Printf("did not Stopped: %v %v", res, err)
+		_, _ = c.Stop(ctx, &pb.Empty{})
+		return false, err
 	}
+
 	return true, nil
 }
 
 func ExitTunnelService() (bool, error) {
-	ctxDial, cancelDial := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancelDial := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancelDial()
-
-	conn, err := grpc.DialContext(
-		ctxDial,
-		targetIP,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
-	)
+	conn, err := grpc.DialContext(ctx, targetIP, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
-		log.Printf(logDidNotConnect, err)
+		log.Printf("did not connect: %v", err)
 		return false, err
 	}
 	defer conn.Close()
-
 	c := pb.NewTunnelServiceClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
 	defer cancel()
 
-	_, err = c.Exit(ctx, &pb.Empty{})
-	if err != nil {
-		log.Printf("exit failed: %v", err)
+	res, err := c.Exit(ctx, &pb.Empty{})
+	if res != nil {
+		log.Printf("did not exit: %v %v", res, err)
 		return false, err
 	}
+
 	return true, nil
 }
 
 func runTunnelService(opt RostovVPNOptions) (bool, error) {
 	executablePath := getTunnelServicePath()
-
-	// 1) Пробуем установить сервис (UAC)
-	if out, err := ExecuteCmd(executablePath, true, "tunnel", "install"); err != nil {
-		// Если установка недоступна — пробуем фронтграундный режим сервиса
+	// 1) Пытаемся установить сервис с повышением привилегий
+	out, err := ExecuteCmd(executablePath, true, "tunnel", "install")
+	if err != nil {
+		// если установка недоступна, пытаемся запустить как «run» (также под UAC)
 		out, err = ExecuteCmd(executablePath, true, "tunnel", "run")
 		fmt.Println("Shell command executed (run):", out, err)
 		if err != nil {
 			return false, err
 		}
-	} else {
-		fmt.Println("Shell command executed (install):", out, nil)
-		// ВАЖНО: после install явно запускаем
-		if _, err2 := ExecuteCmd(executablePath, true, "tunnel", "start"); err2 != nil {
-			// если старт сервиса не удался — fallback на run
-			out3, err3 := ExecuteCmd(executablePath, true, "tunnel", "run")
-			fmt.Println("Shell command executed (start->run):", out3, err3)
-			if err3 != nil {
-				return false, err2
-			}
-		}
 	}
-
-	// 2) Ждём старта сервиса (учитываем UAC/launchd задержки)
+	// 2) Ждём старта сервиса (учитываем, что юзер может долго жать UAC)
 	if err := waitForServiceReady(2 * time.Minute); err != nil {
 		return false, err
 	}
-
-	// 3) Делаем gRPC Start
+	// 3) Когда сервис доступен, делаем Start
 	return startTunnelRequest(opt, false)
 }
 
