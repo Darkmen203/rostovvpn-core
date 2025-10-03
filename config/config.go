@@ -361,6 +361,35 @@ func setInbound(options *option.Options, opt *RostovVPNOptions) {
 		inboundDomainStrategy = opt.IPv6Mode
 	}
 
+	// === TunService (Linux/macOS): не поднимаем TUN внутри sing-box,
+	//     а поднимаем прозрачный TPROXY-вход ===
+	if opt.EnableTunService && runtime.GOOS == "linux" {
+		// TPROXY inbound (перехват TCP+UDP)
+		tproxy := &option.TProxyInboundOptions{
+			ListenOptions: option.ListenOptions{
+				Listen:     addrPtr("0.0.0.0"),
+				ListenPort: opt.TProxyPort, // у тебя 12335
+				InboundOptions: option.InboundOptions{
+					SniffEnabled:             true,
+					SniffOverrideDestination: false,
+					DomainStrategy:           inboundDomainStrategy,
+				},
+			},
+		}
+		options.Inbounds = append(options.Inbounds, option.Inbound{
+			Type:    C.TypeTProxy, // важно: tproxy
+			Tag:     "tproxy-in",
+			Options: tproxy,
+		})
+
+		// Остальные входы оставляем
+		addMixedAndDNSInbounds(options, opt, inboundDomainStrategy)
+
+		// Активируем внешний сервис туннеля
+		ActivateTunnelService(*opt)
+		return
+	}
+
 	// TUN поднимаем только при EnableTun
 	if opt.EnableTun {
 		if opt.MTU == 0 || opt.MTU > 2000 {
@@ -406,44 +435,44 @@ func setInbound(options *option.Options, opt *RostovVPNOptions) {
 		})
 	}
 
+	addMixedAndDNSInbounds(options, opt, inboundDomainStrategy)
+
+	if opt.EnableTunService {
+		ActivateTunnelService(*opt)
+	}
+}
+
+func addMixedAndDNSInbounds(options *option.Options, opt *RostovVPNOptions, s option.DomainStrategy) {
 	bind := "127.0.0.1"
 	if opt.AllowConnectionFromLAN {
 		bind = "0.0.0.0"
 	}
 
-	mixedOptions := &option.HTTPMixedInboundOptions{
-		ListenOptions: option.ListenOptions{
-			Listen:     addrPtr(bind),
-			ListenPort: opt.MixedPort,
-			InboundOptions: option.InboundOptions{
-				SniffEnabled:             true,
-				SniffOverrideDestination: false, // был true
-				DomainStrategy:           inboundDomainStrategy,
+	options.Inbounds = append(options.Inbounds, option.Inbound{
+		Type: C.TypeMixed, Tag: InboundMixedTag,
+		Options: &option.HTTPMixedInboundOptions{
+			ListenOptions: option.ListenOptions{
+				Listen:     addrPtr(bind),
+				ListenPort: opt.MixedPort,
+				InboundOptions: option.InboundOptions{
+					SniffEnabled:             true,
+					SniffOverrideDestination: false,
+					DomainStrategy:           s,
+				},
+			},
+			SetSystemProxy: opt.SetSystemProxy,
+		},
+	})
+
+	options.Inbounds = append(options.Inbounds, option.Inbound{
+		Type: C.TypeDirect, Tag: InboundDNSTag,
+		Options: &option.DirectInboundOptions{
+			ListenOptions: option.ListenOptions{
+				Listen:     addrPtr(bind),
+				ListenPort: opt.LocalDnsPort,
 			},
 		},
-		SetSystemProxy: opt.SetSystemProxy,
-	}
-	options.Inbounds = append(options.Inbounds, option.Inbound{
-		Type:    C.TypeMixed,
-		Tag:     InboundMixedTag,
-		Options: mixedOptions,
 	})
-
-	directDNSOptions := &option.DirectInboundOptions{
-		ListenOptions: option.ListenOptions{
-			Listen:     addrPtr(bind),
-			ListenPort: opt.LocalDnsPort,
-		},
-	}
-	options.Inbounds = append(options.Inbounds, option.Inbound{
-		Type:    C.TypeDirect,
-		Tag:     InboundDNSTag,
-		Options: directDNSOptions,
-	})
-
-	if opt.EnableTunService {
-		ActivateTunnelService(*opt)
-	}
 }
 
 func setDns(options *option.Options, opt *RostovVPNOptions) {
@@ -600,6 +629,13 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 		routeRules = append(routeRules, newRouteRule(
 			option.RawDefaultRule{Domain: []string{"cloudflare-dns.com"}},
 			OutboundDirectTag,
+		))
+	}
+
+	if opt.EnableTunService && runtime.GOOS != "android" {
+		routeRules = append(routeRules, newRouteRule(
+			option.RawDefaultRule{Inbound: []string{"tproxy-in"}},
+			OutboundMainProxyTag, // "select"
 		))
 	}
 	// DNS для самого DoH-хоста отдаём бутстрапу/hosts (applyStaticIPHosts уже сделал правило dns-warp-hosts),
