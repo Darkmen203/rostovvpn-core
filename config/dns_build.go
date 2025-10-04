@@ -33,14 +33,19 @@ func newDNSServer(tag, address, resolver string, strategy option.DomainStrategy,
 	u, _ := url.Parse(address)
 	scheme := strings.ToLower(u.Scheme)
 	host := u.Host
-	fmt.Println("[newDNSServer] host =\n\n\n\n", scheme, "\n\n\n [newDNSServer]")
+	params := u.Query()
+	serverNameParam := strings.TrimSpace(params.Get("server_name"))
+	if serverNameParam == "" {
+		serverNameParam = strings.TrimSpace(params.Get("sni"))
+	}
+	// fmt.Println("[newDNSServer] host =\n\n\n\n", scheme, "\nhost=\n", host ,"\n\n\n [newDNSServer]")
 
 	path := u.Path
 	if strings.TrimSpace(host) == "" &&
 		address == C.DNSTypeLocal {
 		// fallback: не плодим пустой server
 		// return legacyDNSServer(tag, address, resolver, strategy, detour)
-		scheme = C.DNSTypeLocal;
+		scheme = C.DNSTypeLocal
 	}
 	if strings.TrimSpace(host) == "" &&
 		scheme != C.DNSTypeLocal && scheme != C.DNSTypeHosts && scheme != C.DNSTypeFakeIP {
@@ -80,7 +85,7 @@ func newDNSServer(tag, address, resolver string, strategy option.DomainStrategy,
 		}
 	}
 	// detour to an empty direct outbound makes no sense
-	fmt.Println("[newDNSServer] scheme =\n\n\n\n", scheme, "\n\n\n [newDNSServer]")
+	// fmt.Println("[newDNSServer] scheme =\n\n\n\n", scheme, "\n\n\n [newDNSServer]")
 
 	switch scheme {
 	case C.DNSTypeLocal:
@@ -101,7 +106,7 @@ func newDNSServer(tag, address, resolver string, strategy option.DomainStrategy,
 		o.Options = &option.LocalDNSServerOptions{
 			RawLocalDNSServerOptions: remoteOptions.RawLocalDNSServerOptions,
 		}
-		fmt.Println("[newDNSServer] return local =\n\n\n\n", o, "\n\n\n [newDNSServer]")
+		// fmt.Println("[newDNSServer] return local =\n\n\n\n", o, "\n\n\n [newDNSServer]")
 
 		// local — без адреса; detour/domain_resolver можно оставить (ядро проигнорит)
 		return o
@@ -124,99 +129,113 @@ func newDNSServer(tag, address, resolver string, strategy option.DomainStrategy,
 				ServerPort: port,
 			},
 		}
-		fmt.Println("[newDNSServer] return tcp or udp =\n\n\n\n", option.DNSServerOptions{Type: scheme, Tag: tag, Options: opts}, "\n\n\n [newDNSServer]")
+		// fmt.Println("[newDNSServer] return tcp or udp =\n\n\n\n", option.DNSServerOptions{Type: scheme, Tag: tag, Options: opts}, "\n\n\n [newDNSServer]")
 		return option.DNSServerOptions{Type: scheme, Tag: tag, Options: opts}
 
-	case C.DNSTypeTLS, C.DNSTypeQUIC:
+	case C.DNSTypeTLS:
 		def := uint16(853)
 		server, port := parseHostPort(host, def)
 		obj["server"] = server
 		if port != def {
 			obj["server_port"] = port
 		}
-		// при желании сюда позже можно добавить obj["tls"] = { ... }
-		return option.DNSServerOptions{Type: scheme, Tag: tag, Options: obj}
-
+		tlsOptions := &option.RemoteTLSDNSServerOptions{
+			RemoteDNSServerOptions: option.RemoteDNSServerOptions{
+				RawLocalDNSServerOptions: option.RawLocalDNSServerOptions{
+					DialerOptions: option.DialerOptions{Detour: det, DomainResolver: dr},
+				},
+				LegacyAddressResolver:   resolver,
+				LegacyAddressStrategy:   strategy,
+				DNSServerAddressOptions: option.DNSServerAddressOptions{Server: server, ServerPort: port},
+			},
+		}
+		if serverNameParam != "" {
+			tlsOptions.TLS = &option.OutboundTLSOptions{
+				Enabled:    true,
+				ServerName: serverNameParam,
+			}
+		}
+		return option.DNSServerOptions{
+			Type:    C.DNSTypeTLS,
+			Tag:     tag,
+			Options: tlsOptions,
+		}
 	case C.DNSTypeHTTPS, C.DNSTypeHTTP3: // https / h3
-		o := option.DNSServerOptions{Type: scheme, Tag: tag}
 		def := uint16(443)
 		server, port := parseHostPort(host, def)
-		obj["server"] = server
-		if port != def {
-			obj["server_port"] = port
-		}
-		if path != "" {
-			obj["path"] = path
-		}
-		fmt.Println("[newDNSServer] !!! path=\n\n", path, "\n !!! [newDNSServer]")
-
-		remoteOptions := option.RemoteDNSServerOptions{
-			RawLocalDNSServerOptions: option.RawLocalDNSServerOptions{
-				DialerOptions: option.DialerOptions{
-					Detour:         det,
-					DomainResolver: dr,
-				},
-				// Legacy:              true,
-				// LegacyStrategy:      strategy,
-				// LegacyDefaultDialer: det == "",
-			},
-			LegacyAddressResolver: resolver,
-			LegacyAddressStrategy: strategy,
+		if strings.TrimSpace(path) == "" || path == "/" {
+			path = "/dns-query"
 		}
 
-		httpsOptions := option.RemoteHTTPSDNSServerOptions{
+		httpsOptions := &option.RemoteHTTPSDNSServerOptions{
 			RemoteTLSDNSServerOptions: option.RemoteTLSDNSServerOptions{
-				RemoteDNSServerOptions: remoteOptions,
+				RemoteDNSServerOptions: option.RemoteDNSServerOptions{
+					RawLocalDNSServerOptions: option.RawLocalDNSServerOptions{
+						DialerOptions: option.DialerOptions{
+							Detour:         det,
+							DomainResolver: dr,
+						},
+					},
+					LegacyAddressResolver: resolver,
+					LegacyAddressStrategy: strategy,
+					DNSServerAddressOptions: option.DNSServerAddressOptions{
+						Server:     server,
+						ServerPort: port,
+					},
+				},
 			},
+			Path: path,
 		}
-		o.Options = &httpsOptions
-		serverAddr := M.ParseSocksaddr(address)
-		fmt.Println("[newDNSServer] serverAddr= \n\n\n", serverAddr, " !!! [newDNSServer]")
-		httpsOptions.Server = host
-
-		if serverAddr.Port != 0 && serverAddr.Port != 443 {
-			httpsOptions.ServerPort = port
-		}
-		if path != "/dns-query" && path != "/" {
-			httpsOptions.Path = path
-		}
-		fmt.Println("[newDNSServer] return https =\n\n\n\n", option.DNSServerOptions{
-			Type:    scheme,
-			Tag:     tag,
-			Options: o.Options,
-		}, "\n\n\n [newDNSServer]")
-
-		return option.DNSServerOptions{
-			Type:    scheme,
-			Tag:     tag,
-			Options: o.Options,
+		if serverNameParam != "" {
+			httpsOptions.TLS = &option.OutboundTLSOptions{
+				Enabled:    true,
+				ServerName: serverNameParam,
+			}
 		}
 
+		return option.DNSServerOptions{Type: scheme, Tag: tag, Options: httpsOptions}
 	case C.DNSTypeDHCP: // dhcp://iface | dhcp://auto
 		iface := host
 		if strings.TrimSpace(iface) == "" {
 			iface = "auto"
 		}
-		obj["interface"] = iface
-		return option.DNSServerOptions{Type: C.DNSTypeDHCP, Tag: tag, Options: obj}
+		return option.DNSServerOptions{
+			Type: C.DNSTypeDHCP, Tag: tag,
+			Options: &option.DHCPDNSServerOptions{Interface: iface},
+		}
 
 	case C.DNSTypeFakeIP:
 		// при необходимости можно добавить inet4_range/inet6_range (как строки)
-		return option.DNSServerOptions{Type: C.DNSTypeFakeIP, Tag: tag, Options: obj}
+		return option.DNSServerOptions{
+			Type: C.DNSTypeFakeIP, Tag: tag,
+			Options: &option.FakeIPDNSServerOptions{}, // или &option.LegacyDNSFakeIPOptions если ты хочешь legacy-ветку
+		}
 
 	case C.DNSTypeHosts:
 		// этот тип ты используешь в applyStaticIPHosts через типизированную структуру — тут обычно не нужен
-		return option.DNSServerOptions{Type: C.DNSTypeHosts, Tag: tag, Options: obj}
+		return option.DNSServerOptions{
+			Type: C.DNSTypeHosts, Tag: tag,
+			Options: &option.HostsDNSServerOptions{},
+		}
 	}
 
 	// по умолчанию — UDP
 	server, port := parseHostPort(address, 53)
-	obj["server"] = server
-	if port != 53 {
-		obj["server_port"] = port
+	return option.DNSServerOptions{
+		Type: C.DNSTypeUDP, Tag: tag,
+		Options: &option.RemoteDNSServerOptions{
+			RawLocalDNSServerOptions: option.RawLocalDNSServerOptions{
+				DialerOptions: option.DialerOptions{
+					Detour:         detour,
+					DomainResolver: dr,
+				},
+			},
+			DNSServerAddressOptions: option.DNSServerAddressOptions{
+				Server:     server,
+				ServerPort: port,
+			},
+		},
 	}
-	fmt.Println("[newDNSServer] return =\n\n\n\n", option.DNSServerOptions{Type: C.DNSTypeUDP, Tag: tag, Options: obj}, "\n\n\n [newDNSServer]")
-	return option.DNSServerOptions{Type: C.DNSTypeUDP, Tag: tag, Options: obj}
 }
 
 // ---- Массовая сборка + валидация ----

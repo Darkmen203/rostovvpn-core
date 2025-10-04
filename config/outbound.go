@@ -93,6 +93,32 @@ func isOutboundReality(obj outboundMap) bool {
 	return reality.bool("enabled")
 }
 
+// Нормализация SNI для известных кейсов Reality, чтобы избежать битых рукопожатий.
+// Узкий фикс: www.github.com -> github.com (не трогаем другие домены/поддомены).
+func patchOutboundSNINormalize(obj outboundMap) outboundMap {
+	tlsMap, ok := obj.nestedMap("tls")
+	if !ok || !tlsMap.bool("enabled") {
+		return obj
+	}
+	// интересует только Reality (vision)
+	if reality, ok := tlsMap.nestedMap("reality"); !ok || !reality.bool("enabled") {
+		return obj
+	}
+	sni := strings.TrimSpace(strings.ToLower(tlsMap.string("server_name")))
+	if sni == "" {
+		return obj
+	}
+	if sni == "www.github.com" {
+		// outboundMap — это map[string]any, пишем напрямую
+		tlsMap["server_name"] = "github.com"
+	}
+	// Если решите делать шире:
+	// if strings.HasPrefix(sni, "www.") {
+	// 	tlsMap["server_name"] = strings.TrimPrefix(sni, "www.")
+	// }
+	return obj
+}
+
 func detectServerDomain(obj outboundMap) string {
 	if detour := obj.string("detour"); detour != "" {
 		return ""
@@ -118,6 +144,8 @@ func patchOutbound(base option.Outbound, configOpt RostovVPNOptions, staticIPs m
 	}
 	serverDomain := detectServerDomain(obj)
 	obj = patchOutboundTLSTricks(obj, configOpt)
+	// Узкая нормализация SNI для Reality (www.github.com -> github.com)
+	obj = patchOutboundSNINormalize(obj)
 	switch obj.string("type") {
 	case C.TypeVMess, C.TypeVLESS, C.TypeTrojan, C.TypeShadowsocks:
 		obj = patchOutboundMux(obj, configOpt)

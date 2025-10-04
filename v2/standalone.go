@@ -62,10 +62,7 @@ type ConfigResult struct {
 func readAndBuildConfig(rostovvpnSettingPath string, configPath string, defaultConfig *config.RostovVPNOptions) (ConfigResult, error) {
 	var result ConfigResult
 
-	fmt.Println("[standalone.readAndBuildConfig] !!! ", rostovvpnSettingPath, " !!! [standalone.readAndBuildConfig]")
-	fmt.Println("[standalone.readAndBuildConfig] !!! defaultConfig= \n", defaultConfig, "\n !!! [standalone.readAndBuildConfig]")
 	result, err := readConfigContent(configPath)
-	fmt.Println("[readAndBuildConfig] !!! [readConfigContent ] result= \n", result, "\n !!! [readAndBuildConfig] !!! [readConfigContent ] ")
 	if err != nil {
 		return result, err
 	}
@@ -75,7 +72,6 @@ func readAndBuildConfig(rostovvpnSettingPath string, configPath string, defaultC
 	if defaultConfig != nil {
 		*rostovvpnconfig = *defaultConfig
 	}
-	fmt.Println("[readAndBuildConfig] !!! [DefaultRostovVPNOptions ] rostovvpnconfig= \n", rostovvpnconfig, "\n !!! [readAndBuildConfig] !!! [DefaultRostovVPNOptions ] ")
 
 	if rostovvpnSettingPath != "" {
 		rostovvpnconfig, err = ReadRostovVPNOptionsAt(rostovvpnSettingPath)
@@ -85,7 +81,6 @@ func readAndBuildConfig(rostovvpnSettingPath string, configPath string, defaultC
 	}
 
 	result.RostovvpnRostovVPNOptions = rostovvpnconfig
-	fmt.Println("[readAndBuildConfig] !!! [before result.Config ] result= \n", result.Config, ",\n  !!! [readAndBuildConfig] ")
 	result.Config, err = buildConfig(result.Config, *rostovvpnconfig)
 
 	if err != nil {
@@ -129,7 +124,6 @@ func readConfigContent(configPath string) (ConfigResult, error) {
 			return ConfigResult{}, fmt.Errorf("failed to read config file: %w", err)
 		}
 		content = string(data)
-		fmt.Println("[standalone.readConfigContent] !!! content= \n", content, "\n !!! [standalone.readConfigContent]")
 	}
 
 	return ConfigResult{
@@ -259,7 +253,6 @@ func readConfigBytes(content []byte) (*option.Options, error) {
 
 func ReadRostovVPNOptionsAt(path string) (*config.RostovVPNOptions, error) {
 	data, err := os.ReadFile(path)
-	fmt.Print("[ReadRostovVPNOptionsAt] !!!  path\n", path, "\n\n\n\n", data, ",\n  !!! [ReadRostovVPNOptionsAt] ")
 
 	if err != nil {
 		// Нет файла? — вернём дефолты, это не критично для standalone.
@@ -293,7 +286,6 @@ func ReadRostovVPNOptionsAt(path string) (*config.RostovVPNOptions, error) {
 
 // ---- helpers ----
 func applyFlutterPrefs(raw map[string]any, opt *config.RostovVPNOptions) {
-	fmt.Println("[debug applyFlutterPrefs] \n", raw, "\n [debug applyFlutterPrefs]")
 
 	// --- Регион/локаль/сеть ---
 	if v := str(raw, "flutter.region"); v != "" {
@@ -349,6 +341,12 @@ func applyFlutterPrefs(raw map[string]any, opt *config.RostovVPNOptions) {
 	// --- Блокировка рекламы ---
 	if v, ok := boolean(raw, "flutter.block-ads"); ok {
 		opt.BlockAds = v
+	}
+
+	// --- Раздельное проксимирование ---
+
+	if v := str(raw, "flutter.per_app_proxy_mode"); v != "" {
+			opt.PerAppProxyMode = v
 	}
 
 	// --- Connection test URL ---

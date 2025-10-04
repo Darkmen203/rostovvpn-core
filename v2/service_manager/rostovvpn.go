@@ -1,8 +1,6 @@
 package service_manager
 
 import (
-	"fmt"
-
 	"github.com/sagernet/sing-box/adapter"
 )
 
@@ -20,10 +18,8 @@ func Register(service adapter.Service) {
 }
 
 func StartServices() error {
-	fmt.Print("[StartServices in service_manager/rostovvpn.go] !!! ", " !!! [StartServices in service_manager/rostovvpn.go]")
 	CloseServices()
 	for _, stage := range adapter.ListStartStages {
-		fmt.Print("[StartServices in service_manager/rostovvpn.go] !!! ", stage, " !!! [StartServices in service_manager/rostovvpn.go]")
 
 		for _, service := range preservices {
 			if err := adapter.LegacyStart(service, stage); err != nil {
