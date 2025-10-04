@@ -361,35 +361,6 @@ func setInbound(options *option.Options, opt *RostovVPNOptions) {
 		inboundDomainStrategy = opt.IPv6Mode
 	}
 
-	// === TunService (Linux/macOS): не поднимаем TUN внутри sing-box,
-	//     а поднимаем прозрачный TPROXY-вход ===
-	if opt.EnableTunService && runtime.GOOS == "linux" {
-		// TPROXY inbound (перехват TCP+UDP)
-		tproxy := &option.TProxyInboundOptions{
-			ListenOptions: option.ListenOptions{
-				Listen:     addrPtr("0.0.0.0"),
-				ListenPort: opt.TProxyPort, // у тебя 12335
-				InboundOptions: option.InboundOptions{
-					SniffEnabled:             true,
-					SniffOverrideDestination: false,
-					DomainStrategy:           inboundDomainStrategy,
-				},
-			},
-		}
-		options.Inbounds = append(options.Inbounds, option.Inbound{
-			Type:    C.TypeTProxy, // важно: tproxy
-			Tag:     "tproxy-in",
-			Options: tproxy,
-		})
-
-		// Остальные входы оставляем
-		addMixedAndDNSInbounds(options, opt, inboundDomainStrategy)
-
-		// Активируем внешний сервис туннеля
-		ActivateTunnelService(*opt)
-		return
-	}
-
 	// TUN поднимаем только при EnableTun
 	if opt.EnableTun {
 		if opt.MTU == 0 || opt.MTU > 2000 {
