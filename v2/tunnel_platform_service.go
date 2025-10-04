@@ -5,7 +5,9 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/kardianos/service"
@@ -69,6 +71,11 @@ func StartTunnelService(goArg string) (int, string) {
 		Option: map[string]interface{}{
 			"RunAtLoad":        true,
 			"WorkingDirectory": getCurrentExecutableDirectory(),
+			// для systemd:
+			"Restart":    "on-failure",
+			"RestartSec": "2",
+			// запустить как system service (root), а не user service:
+			"UserService": false,
 		},
 	}
 
@@ -89,6 +96,12 @@ func StartTunnelService(goArg string) (int, string) {
 	}
 
 	if len(goArg) > 0 && goArg != "run" {
+		// Перед установкой/стартом — убедимся, что есть override без сетевой изоляции.
+		if (goArg == "install" || goArg == "start") && runtime.GOOS == "linux" {
+			if err := ensureSystemdOverride(svcConfig.Name, getCurrentExecutableDirectory()); err != nil {
+				log.Printf("ensureSystemdOverride: %v", err)
+			}
+		}
 		return control(s, goArg)
 	}
 
@@ -102,6 +115,34 @@ func StartTunnelService(goArg string) (int, string) {
 		return 3, fmt.Sprintf("Error: %v", err)
 	}
 	return 0, ""
+}
+
+// Создаём drop-in /etc/systemd/system/<name>.service.d/override.conf
+// чтобы sing-box запускался от root, без PrivateNetwork/RestrictNamespaces,
+// и видел полноценный сетевой namespace хоста.
+func ensureSystemdOverride(unitName, workDir string) error {
+	if runtime.GOOS != "linux" {
+		return nil
+	}
+	dir := fmt.Sprintf("/etc/systemd/system/%s.service.d", unitName)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	override := `[Service]
+		User=root
+		Group=root
+		WorkingDirectory=` + workDir + `
+		PrivateNetwork=no
+		RestrictNamespaces=no
+		NoNewPrivileges=false
+	`
+	path := filepath.Join(dir, "override.conf")
+	if err := os.WriteFile(path, []byte(override), 0644); err != nil {
+		return err
+	}
+	// перезагрузить конфигурацию systemd
+	_ = exec.Command("systemctl", "daemon-reload").Run()
+	return nil
 }
 
 func control(s service.Service, goArg string) (int, string) {
@@ -121,6 +162,10 @@ func control(s service.Service, goArg string) (int, string) {
 		}
 		err = s.Uninstall()
 	case "start":
+		// убедимся, что override на месте и перечитан
+		if runtime.GOOS == "linux" {
+			_ = exec.Command("systemctl", "daemon-reload").Run()
+		}
 		if status == service.StatusRunning {
 			if dolog {
 				fmt.Printf("Tunnel Service Already Running.\n")
@@ -129,6 +174,9 @@ func control(s service.Service, goArg string) (int, string) {
 		} else if status == service.StatusUnknown {
 			s.Uninstall()
 			s.Install()
+			if runtime.GOOS == "linux" {
+				_ = exec.Command("systemctl", "daemon-reload").Run()
+			}
 			status, serr = s.Status()
 			if dolog {
 				fmt.Printf("Check status again: %+v %+v!", status, serr)
@@ -140,6 +188,9 @@ func control(s service.Service, goArg string) (int, string) {
 	case "install":
 		s.Uninstall()
 		err = s.Install()
+		if runtime.GOOS == "linux" {
+			_ = exec.Command("systemctl", "daemon-reload").Run()
+		}
 		status, serr = s.Status()
 		if dolog {
 			fmt.Printf("Check Status Again: %+v %+v", status, serr)
