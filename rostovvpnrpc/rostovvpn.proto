@@ -187,7 +187,14 @@ message TunnelStartRequest {
     bool strict_route = 3;
     bool endpoint_independent_nat = 4;
     string stack = 5;
-
+    // Прозрачный режим: вместо "tun" делаем "tproxy" на Linux
+    bool transparent = 6;
+    // Порт, куда TPROXY будет «приземлять» трафик (cli -> sing-box inbound tproxy)
+    int32 tproxy_port = 7;
+    // Локальный DNS-порт GUI для редиректа системного DNS (опционально)
+    int32 local_dns_port = 8;
+    // Включать ли редирект udp/53 в dns-in GUI
+    bool dns_redirect = 9;
 }
 
 message TunnelResponse {

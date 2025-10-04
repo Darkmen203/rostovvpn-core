@@ -4996,7 +4996,11 @@ ipv6: jspb.Message.getBooleanFieldWithDefault(msg, 1, false),
 serverPort: jspb.Message.getFieldWithDefault(msg, 2, 0),
 strictRoute: jspb.Message.getBooleanFieldWithDefault(msg, 3, false),
 endpointIndependentNat: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
-stack: jspb.Message.getFieldWithDefault(msg, 5, "")
+stack: jspb.Message.getFieldWithDefault(msg, 5, ""),
+transparent: jspb.Message.getBooleanFieldWithDefault(msg, 6, false),
+tproxyPort: jspb.Message.getFieldWithDefault(msg, 7, 0),
+localDnsPort: jspb.Message.getFieldWithDefault(msg, 8, 0),
+dnsRedirect: jspb.Message.getBooleanFieldWithDefault(msg, 9, false)
   };
 
   if (includeInstance) {
@@ -5052,6 +5056,22 @@ proto.rostovvpnrpc.TunnelStartRequest.deserializeBinaryFromReader = function(msg
     case 5:
       var value = /** @type {string} */ (reader.readString());
       msg.setStack(value);
+      break;
+    case 6:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setTransparent(value);
+      break;
+    case 7:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setTproxyPort(value);
+      break;
+    case 8:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setLocalDnsPort(value);
+      break;
+    case 9:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setDnsRedirect(value);
       break;
     default:
       reader.skipField();
@@ -5114,6 +5134,34 @@ proto.rostovvpnrpc.TunnelStartRequest.serializeBinaryToWriter = function(message
   if (f.length > 0) {
     writer.writeString(
       5,
+      f
+    );
+  }
+  f = message.getTransparent();
+  if (f) {
+    writer.writeBool(
+      6,
+      f
+    );
+  }
+  f = message.getTproxyPort();
+  if (f !== 0) {
+    writer.writeInt32(
+      7,
+      f
+    );
+  }
+  f = message.getLocalDnsPort();
+  if (f !== 0) {
+    writer.writeInt32(
+      8,
+      f
+    );
+  }
+  f = message.getDnsRedirect();
+  if (f) {
+    writer.writeBool(
+      9,
       f
     );
   }
@@ -5207,6 +5255,78 @@ proto.rostovvpnrpc.TunnelStartRequest.prototype.getStack = function() {
  */
 proto.rostovvpnrpc.TunnelStartRequest.prototype.setStack = function(value) {
   return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional bool transparent = 6;
+ * @return {boolean}
+ */
+proto.rostovvpnrpc.TunnelStartRequest.prototype.getTransparent = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 6, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.rostovvpnrpc.TunnelStartRequest} returns this
+ */
+proto.rostovvpnrpc.TunnelStartRequest.prototype.setTransparent = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 6, value);
+};
+
+
+/**
+ * optional int32 tproxy_port = 7;
+ * @return {number}
+ */
+proto.rostovvpnrpc.TunnelStartRequest.prototype.getTproxyPort = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 7, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.rostovvpnrpc.TunnelStartRequest} returns this
+ */
+proto.rostovvpnrpc.TunnelStartRequest.prototype.setTproxyPort = function(value) {
+  return jspb.Message.setProto3IntField(this, 7, value);
+};
+
+
+/**
+ * optional int32 local_dns_port = 8;
+ * @return {number}
+ */
+proto.rostovvpnrpc.TunnelStartRequest.prototype.getLocalDnsPort = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 8, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.rostovvpnrpc.TunnelStartRequest} returns this
+ */
+proto.rostovvpnrpc.TunnelStartRequest.prototype.setLocalDnsPort = function(value) {
+  return jspb.Message.setProto3IntField(this, 8, value);
+};
+
+
+/**
+ * optional bool dns_redirect = 9;
+ * @return {boolean}
+ */
+proto.rostovvpnrpc.TunnelStartRequest.prototype.getDnsRedirect = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 9, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.rostovvpnrpc.TunnelStartRequest} returns this
+ */
+proto.rostovvpnrpc.TunnelStartRequest.prototype.setDnsRedirect = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 9, value);
 };
 
 

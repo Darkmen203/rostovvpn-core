@@ -1,11 +1,16 @@
 package v2
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/kardianos/service"
@@ -13,6 +18,14 @@ import (
 )
 
 var logger service.Logger
+
+// настройки nft/policy routing (совпадают с GUI-частью)
+const (
+	nftTable = "rostovvpn"
+	nftChain = "prerouting"
+	fwMark   = "0x1"
+	rtTable  = "100"
+)
 
 type rostovvpnNext struct {
 	srv *grpc.Server
@@ -102,6 +115,92 @@ func StartTunnelService(goArg string) (int, string) {
 		return 3, fmt.Sprintf("Error: %v", err)
 	}
 	return 0, ""
+}
+
+// ===== Linux TPROXY helpers =====
+func runCmd(ctx context.Context, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("%s %v: %w (%s)", name, args, err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+func cmdExists(ctx context.Context, name string, args ...string) bool {
+	return exec.CommandContext(ctx, name, args...).Run() == nil
+}
+
+// EnsureTPROXY — ставит policy routing и nft tproxy. Вызывать перед запуском tproxy-конфига.
+func EnsureTPROXY(tproxyPort, dnsLocalPort int, enableDNSRedirect bool) error {
+	if runtime.GOOS != "linux" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+
+	// 1) policy routing
+	if !cmdExists(ctx, "sh", "-c", "ip rule show | grep -q 'fwmark "+fwMark+" lookup "+rtTable+"'") {
+		if err := runCmd(ctx, "ip", "rule", "add", "fwmark", fwMark, "lookup", rtTable); err != nil {
+			return err
+		}
+	}
+	if !cmdExists(ctx, "sh", "-c", "ip route show table "+rtTable+" | grep -q 'local 0.0.0.0/0 dev lo'") {
+		if err := runCmd(ctx, "ip", "route", "add", "local", "0.0.0.0/0", "dev", "lo", "table", rtTable); err != nil {
+			return err
+		}
+	}
+	// IPv6 (best-effort)
+	_ = runCmd(ctx, "ip", "-6", "rule", "add", "fwmark", fwMark, "lookup", rtTable)
+	_ = runCmd(ctx, "ip", "-6", "route", "add", "local", "::/0", "dev", "lo", "table", rtTable)
+
+	// 2) nftables: таблица/цепочка
+	_ = runCmd(ctx, "nft", "create", "table", "inet", nftTable)
+	_ = runCmd(ctx, "nft", "add", "chain", "inet", nftTable, nftChain, "{ type filter hook prerouting priority mangle; policy accept; }")
+
+	// 3) правила TPROXY TCP/UDP
+	tcpRule := fmt.Sprintf("ip protocol tcp tproxy to :%d meta mark set %s accept", tproxyPort, fwMark)
+	udpRule := fmt.Sprintf("ip protocol udp tproxy to :%d meta mark set %s accept", tproxyPort, fwMark)
+	if !cmdExists(ctx, "sh", "-c", "nft list ruleset | grep -Fq '"+tcpRule+"'") {
+		if err := runCmd(ctx, "nft", "add", "rule", "inet", nftTable, nftChain,
+			"ip", "protocol", "tcp", "tproxy", "to", fmt.Sprintf(":%d", tproxyPort),
+			"meta", "mark", "set", fwMark, "accept"); err != nil {
+			return err
+		}
+	}
+	if !cmdExists(ctx, "sh", "-c", "nft list ruleset | grep -Fq '"+udpRule+"'") {
+		if err := runCmd(ctx, "nft", "add", "rule", "inet", nftTable, nftChain,
+			"ip", "protocol", "udp", "tproxy", "to", fmt.Sprintf(":%d", tproxyPort),
+			"meta", "mark", "set", fwMark, "accept"); err != nil {
+			return err
+		}
+	}
+	// 4) (опц.) системный DNS → локальный dns-in GUI
+	if enableDNSRedirect {
+		dnsRule := fmt.Sprintf("udp dport 53 redirect to :%d", dnsLocalPort)
+		if !cmdExists(ctx, "sh", "-c", "nft list ruleset | grep -Fq '"+dnsRule+"'") {
+			if err := runCmd(ctx, "nft", "add", "rule", "inet", nftTable, nftChain,
+				"udp", "dport", "53", "redirect", "to", fmt.Sprintf(":%d", dnsLocalPort)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// CleanupTPROXY — снимает наши правила. Вызывать при Stop/Exit.
+func CleanupTPROXY() error {
+	if runtime.GOOS != "linux" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	_ = runCmd(ctx, "nft", "delete", "table", "inet", nftTable)
+	_ = runCmd(ctx, "ip", "rule", "del", "fwmark", fwMark, "lookup", rtTable)
+	_ = runCmd(ctx, "ip", "route", "del", "local", "0.0.0.0/0", "dev", "lo", "table", rtTable)
+	_ = runCmd(ctx, "ip", "-6", "rule", "del", "fwmark", fwMark, "lookup", rtTable)
+	_ = runCmd(ctx, "ip", "-6", "route", "del", "local", "::/0", "dev", "lo", "table", rtTable)
+	return nil
 }
 
 func control(s service.Service, goArg string) (int, string) {
