@@ -83,7 +83,8 @@ func makeTunnelConfig(Ipv6 bool, ServerPort int32, StrictRoute bool, EndpointInd
 					],
 				"outbound": "direct-out"
 			}
-		  ]
+		  ],
+		  "final": "socks-out"
 		}
 	  }`
 
@@ -116,3 +117,4 @@ func (s *TunnelService) Exit(ctx context.Context, _ *pb.Empty) (*pb.TunnelRespon
 		Message: "OK",
 	}, nil
 }
+
