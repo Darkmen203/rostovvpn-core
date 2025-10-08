@@ -7,6 +7,7 @@ CLINAME=RostovVPNCli
 VPNCLI_NAME=rvpncli
 WIN_HELPER_NAME=rostovvpn-helper
 MAC_HELPER_NAME=rostovvpn-helper
+LINUX_RPATH=-Wl,-rpath,\$$ORIGIN/lib -Wl,--enable-new-dtags
 
 BRANCH=$(shell git branch --show-current)
 VERSION=$(shell git describe --tags || echo "unknown version")
@@ -79,7 +80,7 @@ linux-amd64:
 	env GOOS=linux GOARCH=amd64 $(GOBUILDLIB) -o $(BINDIR)/lib/$(LIBNAME).so ./custom
 	mkdir lib
 	cp $(BINDIR)/lib/$(LIBNAME).so ./lib/$(LIBNAME).so
-	env GOOS=linux GOARCH=amd64  CGO_LDFLAGS="./lib/$(LIBNAME).so" $(GOBUILDSRV) -o $(BINDIR)/$(CLINAME) ./cli/bydll
+	env GOOS=linux GOARCH=amd64  CGO_LDFLAGS="$(LINUX_RPATH) ./lib/$(LIBNAME).so" $(GOBUILDSRV) -o $(BINDIR)/$(CLINAME) ./cli/bydll
 	rm -rf ./lib
 	chmod +x $(BINDIR)/$(CLINAME)
 	make webui
@@ -140,7 +141,5 @@ desktop: vpncli win-helper mac-helper ## собрать rvpncli + helpers
 
 release: # Create a new tag for release.	
 	@bash -c '.github/change_version.sh'
-	
-
 
 
