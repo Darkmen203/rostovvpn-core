@@ -80,7 +80,7 @@ linux-amd64:
 	env GOOS=linux GOARCH=amd64 $(GOBUILDLIB) -o $(BINDIR)/lib/$(LIBNAME).so ./custom
 	mkdir lib
 	cp $(BINDIR)/lib/$(LIBNAME).so ./lib/$(LIBNAME).so
-	env GOOS=linux GOARCH=amd64  CGO_LDFLAGS="$(LINUX_RPATH) ./lib/$(LIBNAME).so" $(GOBUILDSRV) -o $(BINDIR)/$(CLINAME) ./cli/bydll
+	env GOOS=linux GOARCH=amd64  CGO_LDFLAGS="$(LINUX_RPATH) -L./lib -lcore" $(GOBUILDSRV) -o $(BINDIR)/$(CLINAME) ./cli/bydll
 	rm -rf ./lib
 	chmod +x $(BINDIR)/$(CLINAME)
 	make webui
@@ -141,5 +141,6 @@ desktop: vpncli win-helper mac-helper ## собрать rvpncli + helpers
 
 release: # Create a new tag for release.	
 	@bash -c '.github/change_version.sh'
+
 
 

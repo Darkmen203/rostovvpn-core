@@ -23,6 +23,8 @@ func ExecuteCmd(executablePath string, background bool, args ...string) (string,
 		}
 	}
 
+	full := append([]string{executablePath}, args...)
+
 	tryRun := func(cmdline []string) error {
 		if len(cmdline) == 0 {
 			return errors.New("empty command")
@@ -46,7 +48,6 @@ func ExecuteCmd(executablePath string, background bool, args ...string) (string,
 		// 1) Нативная эскалация через AppleScript (GUI prompt)
 		// do shell script "...</escaped...>" with administrator privileges
 		esc := func(s string) string { return strings.ReplaceAll(s, `"`, `\"`) }
-		full := append([]string{executablePath}, args...)
 		// Команду исполним через sh -c, чтобы проще экранировать аргументы
 		shCmd := "exec " + shellJoin(full)
 		osascript := []string{"/usr/bin/osascript", "-e",
@@ -65,8 +66,11 @@ func ExecuteCmd(executablePath string, background bool, args ...string) (string,
 		candidates = append(candidates, append([]string{"sudo", executablePath}, args...))
 
 	default: // linux и прочее unix
-		// 1) pkexec (polkit GUI)
-		candidates = append(candidates, append([]string{"pkexec", executablePath}, args...))
+		cwdQuoted := shellJoin([]string{cwd})
+		fullShell := shellJoin(full)
+		// 1) pkexec (polkit GUI) — оборачиваем, чтобы сохранить рабочий каталог и путь к библиотекам
+		pkexecCmd := []string{"pkexec", "sh", "-c", fmt.Sprintf("cd %s && export LD_LIBRARY_PATH=%s/lib:$LD_LIBRARY_PATH && exec %s", cwdQuoted, cwdQuoted, fullShell)}
+		candidates = append(candidates, pkexecCmd)
 		// 2) sudo -A (GUI askpass, если есть)
 		if os.Getenv("SUDO_ASKPASS") != "" {
 			candidates = append(candidates, append([]string{"sudo", "-A", executablePath}, args...))
