@@ -46,12 +46,12 @@ func ExecuteCmd(executablePath string, background bool, args ...string) (string,
 	switch runtime.GOOS {
 	case "darwin":
 		// 1) Нативная эскалация через AppleScript (GUI prompt)
-		// do shell script "...</escaped...>" with administrator privileges
+		// do shell script "...</escaped...>" with prompt ... with administrator privileges
 		esc := func(s string) string { return strings.ReplaceAll(s, `"`, `\"`) }
 		// Команду исполним через sh -c, чтобы проще экранировать аргументы
 		shCmd := "exec " + shellJoin(full)
 		osascript := []string{"/usr/bin/osascript", "-e",
-			fmt.Sprintf(`do shell script "%s" with administrator privileges prompt "RostovVPN needs root for tunneling."`, esc(shCmd)),
+			fmt.Sprintf(`do shell script "%s" with prompt "RostovVPN needs root for tunneling." with administrator privileges`, esc(shCmd)),
 		}
 		candidates = append(candidates, osascript)
 
