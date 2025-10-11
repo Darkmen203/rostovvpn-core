@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/Darkmen203/rostovvpn-core/config"
 	pb "github.com/Darkmen203/rostovvpn-core/rostovvpnrpc"
 )
 
@@ -32,13 +33,17 @@ func (s *TunnelService) Start(ctx context.Context, in *pb.TunnelStartRequest) (*
 }
 
 func makeTunnelConfig(Ipv6 bool, ServerPort int32, StrictRoute bool, EndpointIndependentNat bool, Stack string) string {
-	var ipv6 string
+	var ipv6Line string
 	if Ipv6 {
-		ipv6 = `      "inet6_address": "fdfe:dcba:9876::1/126",`
-	} else {
-		ipv6 = ""
+		ipv6Line = "\t\t\t\"inet6_address\": \"fdfe:dcba:9876::1/126\",\n"
 	}
-	base := `{
+
+	interfaceLine := ""
+	if name := config.DefaultTunInterfaceName(); name != "" {
+		interfaceLine = fmt.Sprintf("\t\t\t\"interface_name\": \"%s\",\n", name)
+	}
+
+	return fmt.Sprintf(`{
 		"log":{
 			"level": "warn"
 		},
@@ -46,13 +51,11 @@ func makeTunnelConfig(Ipv6 bool, ServerPort int32, StrictRoute bool, EndpointInd
 		  {
 			"type": "tun",
 			"tag": "tun-in",
-            "interface_name": "RostovVPNTunnel",
-			"inet4_address": "172.19.0.1/30",
-			` + ipv6 + `
-			"auto_route": true,
-			"strict_route": ` + fmt.Sprintf("%t", StrictRoute) + `,
-			"endpoint_independent_nat": ` + fmt.Sprintf("%t", EndpointIndependentNat) + `,
-			"stack": "` + Stack + `"
+%s			"inet4_address": "172.19.0.1/30",
+%s			"auto_route": true,
+			"strict_route": %t,
+			"endpoint_independent_nat": %t,
+			"stack": "%s"
 		  }
 		],
 		"outbounds": [
@@ -60,7 +63,7 @@ func makeTunnelConfig(Ipv6 bool, ServerPort int32, StrictRoute bool, EndpointInd
 			"type": "socks",
 			"tag": "socks-out",
 			"server": "127.0.0.1",
-			"server_port": ` + fmt.Sprintf("%d", ServerPort) + `,
+			"server_port": %d,
 			"version": "5"
 		  },
 		  {
@@ -86,11 +89,8 @@ func makeTunnelConfig(Ipv6 bool, ServerPort int32, StrictRoute bool, EndpointInd
 		  ],
 		  "final": "socks-out"
 		}
-	  }`
-
-	return base
+	  }`, interfaceLine, ipv6Line, StrictRoute, EndpointIndependentNat, Stack, ServerPort)
 }
-
 func (s *TunnelService) Stop(ctx context.Context, _ *pb.Empty) (*pb.TunnelResponse, error) {
 	res, err := Stop()
 	log.Printf("Stop Result: %+v\n", res)
