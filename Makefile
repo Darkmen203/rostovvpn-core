@@ -8,6 +8,10 @@ VPNCLI_NAME=rvpncli
 WIN_HELPER_NAME=rostovvpn-helper
 MAC_HELPER_NAME=rostovvpn-helper
 LINUX_RPATH=-Wl,-rpath,\$$ORIGIN/lib -Wl,--enable-new-dtags
+# rpath для macOS: Frameworks лежит на уровень выше исполнимого
+MAC_RPATHS=-Wl,-rpath,@executable_path/../Frameworks -Wl,-rpath,@loader_path/../Frameworks
+# install_name для финального универcального dylib
+MAC_DYLIB_ID=@rpath/$(LIBNAME).dylib
 
 BRANCH=$(shell git branch --show-current)
 VERSION=$(shell git describe --tags || echo "unknown version")
@@ -100,9 +104,17 @@ macos-arm64:
 	
 macos-universal: macos-amd64 macos-arm64 
 	lipo -create $(BINDIR)/$(LIBNAME)-amd64.dylib $(BINDIR)/$(LIBNAME)-arm64.dylib -output $(BINDIR)/$(LIBNAME).dylib
+	install_name_tool -id "$(MAC_DYLIB_ID)" "$(BINDIR)/$(LIBNAME).dylib"
 	cp $(BINDIR)/$(LIBNAME).dylib ./$(LIBNAME).dylib 
-	env GOOS=darwin GOARCH=amd64 CGO_CFLAGS="-mmacosx-version-min=10.11" CGO_LDFLAGS="-mmacosx-version-min=10.11" CGO_LDFLAGS="bin/$(LIBNAME).dylib"  CGO_ENABLED=1 $(GOBUILDSRV)  -o $(BINDIR)/$(CLINAME) ./cli/bydll
+	env GOOS=darwin GOARCH=amd64 CGO_CFLAGS="-mmacosx-version-min=10.11" CGO_LDFLAGS="-mmacosx-version-min=10.11 -L./ -lcore $(MAC_RPATHS)" CGO_ENABLED=1 $(GOBUILDSRV) -o $(BINDIR)/$(CLINAME) ./cli/bydll
 	rm ./$(LIBNAME).dylib
+
+	install_name_tool -change "libcore.dylib" "@rpath/libcore.dylib" "$(BINDIR)/$(CLINAME)" || true
+	install_name_tool -change "$(LIBNAME).dylib" "@rpath/$(LIBNAME).dylib" "$(BINDIR)/$(CLINAME)" || true
+
+	# Добавляем rpath'ы в сам бинарь, чтобы @rpath вёл в Contents/Frameworks из .app
+	install_name_tool -add_rpath "@executable_path/../Frameworks" "$(BINDIR)/$(CLINAME)" || true
+	install_name_tool -add_rpath "@loader_path/../Frameworks"     "$(BINDIR)/$(CLINAME)" || true
 	chmod +x $(BINDIR)/$(CLINAME)
 
 clean:
@@ -141,6 +153,3 @@ desktop: vpncli win-helper mac-helper ## собрать rvpncli + helpers
 
 release: # Create a new tag for release.	
 	@bash -c '.github/change_version.sh'
-
-
-
