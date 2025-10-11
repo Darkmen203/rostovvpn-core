@@ -106,7 +106,10 @@ macos-universal: macos-amd64 macos-arm64
 	lipo -create $(BINDIR)/$(LIBNAME)-amd64.dylib $(BINDIR)/$(LIBNAME)-arm64.dylib -output $(BINDIR)/$(LIBNAME).dylib
 	install_name_tool -id "$(MAC_DYLIB_ID)" "$(BINDIR)/$(LIBNAME).dylib"
 	cp $(BINDIR)/$(LIBNAME).dylib ./$(LIBNAME).dylib 
-	env GOOS=darwin GOARCH=amd64 CGO_CFLAGS="-mmacosx-version-min=10.11" CGO_LDFLAGS="-mmacosx-version-min=10.11 -L./ -lcore $(MAC_RPATHS)" CGO_ENABLED=1 $(GOBUILDSRV) -o $(BINDIR)/$(CLINAME) ./cli/bydll
+	clang -arch x86_64 -mmacosx-version-min=10.11 -L./ -lcore $(MAC_RPATHS) -o $(BINDIR)/$(CLINAME)-amd64 cli/bydll/main.c
+	clang -arch arm64 -mmacosx-version-min=10.11 -L./ -lcore $(MAC_RPATHS) -o $(BINDIR)/$(CLINAME)-arm64 cli/bydll/main.c
+	lipo -create $(BINDIR)/$(CLINAME)-amd64 $(BINDIR)/$(CLINAME)-arm64 -output $(BINDIR)/$(CLINAME)
+	rm $(BINDIR)/$(CLINAME)-amd64 $(BINDIR)/$(CLINAME)-arm64
 	rm ./$(LIBNAME).dylib
 
 	install_name_tool -change "libcore.dylib" "@rpath/libcore.dylib" "$(BINDIR)/$(CLINAME)" || true
