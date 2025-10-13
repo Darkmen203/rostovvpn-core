@@ -2,7 +2,6 @@ package mobile
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -44,8 +43,6 @@ func BuildConfig(path string, RostovVPNOptionsJson string) (string, error) {
 	if err != nil {
 		return "", nil
 	}
-	fmt.Println("[mobile.BuildConfig] !!! \noptions=\n", options, "\n\nRostovVPNOptions=\n", RostovVPNOptions, "\n !!! [mobile.BuildConfig]")
-
 	return config.BuildConfigJson(*RostovVPNOptions, options)
 }
 

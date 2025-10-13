@@ -21,7 +21,7 @@ func (s *TunnelService) Start(ctx context.Context, in *pb.TunnelStartRequest) (*
 		DisableMemoryLimit:     true,
 		EnableRawConfig:        true,
 	})
-	fmt.Printf("Start Result: %+v\n", res)
+	log.Printf("Start Result: %+v\n", res)
 	if err != nil {
 		return &pb.TunnelResponse{
 			Message: err.Error(),
