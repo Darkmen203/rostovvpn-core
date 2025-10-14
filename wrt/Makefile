@@ -1,12 +1,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=rostovvpn-core
-PKG_VERSION:=3.2.0
+PKG_VERSION:=3.3.0
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/Darkmen203/rostovvpn-core/tar.gz/v$(PKG_VERSION)?
-PKG_HASH:=ff4c63e9d67a1f2e5d1c24a5c58b1693958bbbd66ad01ef6367697a6c05781b5
+PKG_HASH:=918726538a87ba98bd6cb6661bd114d3760c239e6747675f2bdcc11f036ecc84
 
 PKG_LICENSE:=https://github.com/Darkmen203/RostovVPN/edit/main/LICENSE.md
 PKG_LICENSE_FILES:=LICENSE
