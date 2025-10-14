@@ -3,7 +3,6 @@ package v2
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/Darkmen203/rostovvpn-core/config"
@@ -21,7 +20,7 @@ func (s *TunnelService) Start(ctx context.Context, in *pb.TunnelStartRequest) (*
 		DisableMemoryLimit:     true,
 		EnableRawConfig:        true,
 	})
-	log.Printf("Start Result: %+v\n", res)
+	fmt.Printf("Start Result: %+v\n", res)
 	if err != nil {
 		return &pb.TunnelResponse{
 			Message: err.Error(),
@@ -93,7 +92,7 @@ func makeTunnelConfig(Ipv6 bool, ServerPort int32, StrictRoute bool, EndpointInd
 }
 func (s *TunnelService) Stop(ctx context.Context, _ *pb.Empty) (*pb.TunnelResponse, error) {
 	res, err := Stop()
-	log.Printf("Stop Result: %+v\n", res)
+	fmt.Printf("Stop Result: %+v\n", res)
 	if err != nil {
 		return &pb.TunnelResponse{
 			Message: err.Error(),
@@ -117,4 +116,3 @@ func (s *TunnelService) Exit(ctx context.Context, _ *pb.Empty) (*pb.TunnelRespon
 		Message: "OK",
 	}, nil
 }
-

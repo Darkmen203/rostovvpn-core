@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/rand"
 	"net"
 	"net/netip"
@@ -128,7 +127,6 @@ func BuildConfigJson(configOpt RostovVPNOptions, input option.Options) (string, 
 
 // TODO include selectors
 func BuildConfig(opt RostovVPNOptions, input option.Options) (*option.Options, error) {
-	// fmt.Printf("config options: %++v\n", opt)
 
 	var options option.Options
 	if opt.EnableFullConfig {
@@ -148,14 +146,10 @@ func BuildConfig(opt RostovVPNOptions, input option.Options) (*option.Options, e
 			options.Experimental.ClashAPI = nil
 		}
 	}
-
-	// fmt.Print("[BuildConfig] !!! input= \n", input, ",\n  !!! [BuildConfig] ")
 	setClashAPI(&options, &opt)
 	setLog(&options, &opt)
 	setInbound(&options, &opt)
 	setDns(&options, &opt)
-	// fmt.Printf("[debug] Region=%q BlockAds=%v EnableDNSRouting=%v ConnTestUrl=%q\n",
-	// opt.Region, opt.BlockAds, opt.EnableDNSRouting, opt.ConnectionTestUrl)
 	setRoutingOptions(&options, &opt)
 	setFakeDns(&options, &opt)
 	err := setOutbounds(&options, &input, &opt)
@@ -377,9 +371,6 @@ func setInbound(options *option.Options, opt *RostovVPNOptions) {
 			opt.MTU = 1450
 		}
 
-		// ВАЖНО:
-		// 1) Всегда массив (даже при IPv4-only), иначе Listable сериализуется в строку.
-		// 2) Используем /30 (IPv4) и /126 (IPv6) для p2p — это стабильно на Android/gVisor.
 		addressList := badoption.Listable[netip.Prefix]{
 			netip.MustParsePrefix("172.19.0.1/30"),
 			netip.MustParsePrefix("fdfe:dcba:9876::1/126"),
@@ -402,7 +393,6 @@ func setInbound(options *option.Options, opt *RostovVPNOptions) {
 		// Android-специфика: не захватываем трафик своего приложения
 		// и не «бетонируем» маршруты — прямые сокеты смогут найти маршрут.
 		if runtime.GOOS == "android" {
-			// tunOptions.StrictRoute = false
 			tunOptions.ExcludePackage = badoption.Listable[string]{
 				"com.rostovvpn.rostovvpn",
 				"app.rostovvpn.com",
@@ -462,18 +452,7 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 	dnsOptions.DNSClientOptions = option.DNSClientOptions{
 		IndependentCache: opt.IndependentDNSCache,
 	}
-	// ВСЕГДА держим и прокси-DNS, и бутстрап-DoH, и local.
-	// dnsOptions.Servers = []option.DNSServerOptions{
-	// 	// 1) основной резолвер через прокси (для всего остального трафика)
-	// 	newDNSServer(DNSRemoteTag, normalizeDNSAddress(opt.RemoteDnsAddress), DNSLocalTag, opt.RemoteDnsDomainStrategy, OutboundSelectTag),
-	// 	// 2) бутстрап-DoH, который ходит напрямую (anti-DPI)
-	// 	// ВАЖНО: DoH сам себя резолвит через hosts (dns-warp-hosts), detour не задаём
-	// 	newDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", DNSWarpHostsTag, opt.DirectDnsDomainStrategy, ""),
-	// 	// 3) опциональный plain UDP DNS напрямую (пусть будет как запасной)
-	// 	newDNSServer(DNSDirectTag, normalizeDNSAddress(opt.DirectDnsAddress), DNSLocalTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
-	// 	// 4) local/system
-	// 	newDNSServer(DNSLocalTag, "local", "", 0, ""),
-	// }
+
 	// --- BOOTSTRAP DNS (всегда DIRECT) ---
 	bootstrap := normalizeDNSAddress(opt.DirectDnsAddress)
 	if strings.TrimSpace(bootstrap) == "" {
@@ -491,13 +470,9 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 	}
 
 	dnsOptions.Servers = []option.DNSServerOptions{
-		// 0) bootstrap UDP → direct (всегда)
 		newDNSServer(DNSBootstrapTag, bootstrap, DNSLocalTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
-		// 1) DoH Cloudflare; ANDROID/TUN: detour=direct (см. выше)
 		newDNSServer(DNSRemoteTag, pickProxyDNS(opt.RemoteDnsAddress, runtime.GOOS == "android" || opt.EnableTun || opt.EnableTunService), remoteResolver, opt.RemoteDnsDomainStrategy, dnsRemoteDetour),
-		// 2) trick‑DoH RethinkDNS → direct, с хостами
-		// newDNSServer(DNSTricksDirectTag, "https://sky.rethinkdns.com/", DNSWarpHostsTag, opt.DirectDnsDomainStrategy, OutboundDirectTag),
-		// 3) local/system
+
 		newDNSServer(DNSLocalTag, "local", "", 0, ""),
 	}
 	if !(runtime.GOOS == "android" && (opt.EnableTun || opt.EnableTunService)) {
@@ -506,18 +481,9 @@ func setDns(options *option.Options, opt *RostovVPNOptions) {
 		)
 	}
 	options.DNS = dnsOptions
-	// fmt.Println("[setDns] !!! \n", dnsOptions, "\n !!! [setDns]")
 
-	// // ВАЖНО: если включены TLS-tricks — прокинем их прямо в DoH (dns-trick-direct)
-	// injectTLSTricksIntoDoH(options, opt)
-	// ВНИМАНИЕ: upstream xtls/sing-box не поддерживает tls_fragment/tls_padding/mixed_sni_case
-	// у DNS-серверов. Чтобы не уронить парсер — ничего не инжектим, но выводим предупреждение,
-	// если флаги включены.
 	warnIfTLSTricksRequestedButUnsupported(opt)
 
-	// if ips := getIPs([]string{"www.speedtest.net", "sky.rethinkdns.com"}); len(ips) > 0 {
-	// 	applyStaticIPHosts(options, map[string][]string{"sky.rethinkdns.com": ips})
-	// }
 	// Гарантируем IP для sky.rethinkdns.com даже если системный DNS мёртв на старте.
 	{
 		applyStaticIPHosts(options, map[string][]string{
@@ -555,7 +521,6 @@ func setFakeDns(options *option.Options, opt *RostovVPNOptions) {
 			},
 		},
 	}
-	// fmt.Println("[setFakeDns] !!! \n", dnsRule, "\n !!! [setFakeDns]")
 
 	options.DNS.Rules = append(options.DNS.Rules, option.DNSRule{Type: C.RuleTypeDefault, DefaultOptions: dnsRule})
 }
@@ -570,10 +535,6 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 
 	routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{Inbound: []string{InboundDNSTag}}, OutboundDNSTag))
 	routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{Port: []uint16{53}}, OutboundDNSTag))
-	// routeRules = append(routeRules, newRouteRule(
-	// 	option.RawDefaultRule{Domain: []string{"api.ip.sb", "ipapi.co", "ipinfo.io"}},
-	// 	OutboundDirectTag,
-	// ))
 	// ANDROID: Разрешаем DoT (853) к приватным IP (в т.ч. 172.19.0.2 — peer TUN DNS),
 	// чтобы системный Private DNS не ломал старт, а всё остальное по 853 блокируем.
 	if runtime.GOOS == "android" {
@@ -612,14 +573,6 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 			OutboundDirectTag,
 		))
 	}
-	// DNS для самого DoH-хоста отдаём бутстрапу/hosts (applyStaticIPHosts уже сделал правило dns-warp-hosts),
-	// отдельное DNS-правило здесь не нужно. Если хочешь принудительно — можно так:
-	// dnsRules = append(dnsRules, newDNSRouteRule(
-	//     option.DefaultDNSRule{RawDefaultDNSRule: option.RawDefaultDNSRule{Domain: []string{"sky.rethinkdns.com"}}},
-	//     DNSWarpHostsTag,
-	// ))
-
-	// fmt.Println("[setRoutingOptions] !!! dnsRules=\n", dnsRules, "]n !!! [setRoutingOptions]")
 
 	for _, rule := range opt.Rules {
 		routeRule := rule.MakeRule()
@@ -647,11 +600,10 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 		var server string
 		switch rule.Outbound {
 		case "bypass":
-			// server = DNSDirectTag
 			server = DNSBootstrapTag
 		case "block":
 			{
-				rc := option.DNSRCode(0) // или "REFUSED"/"NXDOMAIN" — как хочешь блокировать
+				rc := option.DNSRCode(0)
 				dnsRule.DNSRuleAction = option.DNSRuleAction{
 					Action: C.RuleActionTypePredefined,
 					PredefinedOptions: option.DNSRouteActionPredefined{
@@ -663,7 +615,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 					DefaultOptions: dnsRule,
 				})
 			}
-			continue // важно: чтобы ниже не перезаписать dnsRule через RouteOptions
+			continue
 		case "proxy":
 			server = DNSRemoteTag
 			if opt.EnableFakeDNS {
@@ -703,7 +655,6 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 		}
 		dnsRules = append(dnsRules, option.DNSRule{Type: C.RuleTypeDefault, DefaultOptions: dnsRule})
 	}
-	// fmt.Println("[setRoutingOptions] !!! \n", *opt, "]n !!! [setRoutingOptions]")
 	if opt.BlockAds {
 		blockRuleSets := []struct {
 			Tag string
@@ -722,16 +673,6 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 			rulesets = append(rulesets, newRemoteRuleSet(rs.Tag, rs.URL))
 		}
 		routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{RuleSet: ruleSetTags}, OutboundBlockTag))
-		// dnsRules = append(dnsRules,
-		// 	newDNSPredefinedRule(
-		// 		option.DefaultDNSRule{
-		// 			RawDefaultDNSRule: option.RawDefaultDNSRule{
-		// 				RuleSet: ruleSetTags,
-		// 			},
-		// 		},
-		// 		option.DNSRCode(3),
-		// 	),
-		// )
 	}
 
 	if opt.Region != "other" {
@@ -747,18 +688,7 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 			regionTags = append(regionTags, rs.Tag)
 			rulesets = append(rulesets, newRemoteRuleSet(rs.Tag, rs.URL))
 		}
-		// dnsRules = append(dnsRules, newDNSRouteRule(
-		// 	option.DefaultDNSRule{
-		// 		RawDefaultDNSRule: option.RawDefaultDNSRule{
-		// 			DomainSuffix: []string{"." + opt.Region},
-		// 		},
-		// 	},
-		// 	DNSDirectTag,
-		// ))
-		// fmt.Println("[setRoutingOptions] not other!!! \n", opt.Region, "\n\n\n\n\n", dnsRules, "]n !!! [setRoutingOptions]")
-
-		// routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{RuleSet: regionTags}, OutboundDirectTag))
-		// dnsRules = append(dnsRules, newDNSRouteRule(option.DefaultDNSRule{RawDefaultDNSRule: option.RawDefaultDNSRule{RuleSet: regionTags}}, DNSDirectTag))
+		
 		if opt.EnableTunService || runtime.GOOS == "android" {
 			// 1) По умолчанию (без флагов) оставляем как есть: DNS для RU через прокси-DoH
 			dnsRules = append(dnsRules, newDNSRouteRule(
@@ -784,7 +714,6 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 				},
 				DNSBootstrapTag,
 			))
-			// fmt.Println("[setRoutingOptions] not other!!! \n", opt.Region, "\n\n\n\n\n", dnsRules, "]n !!! [setRoutingOptions]")
 
 			routeRules = append(routeRules, newRouteRule(option.RawDefaultRule{RuleSet: regionTags}, OutboundDirectTag))
 			dnsRules = append(dnsRules, newDNSRouteRule(
@@ -829,7 +758,6 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 	if ns := toNetworkStrategyPtr(opt.DefaultNetworkStrategy); ns != nil {
 		options.Route.DefaultNetworkStrategy = ns
 	} else if options.Route.DefaultNetworkStrategy == nil {
-		// <<< ВСТАВКА: автоматическое наследование из IPv6Mode >>>
 		// Если явная стратегия сети не задана — синхронизируем с IPv6Mode.
 		switch opt.IPv6Mode {
 		case option.DomainStrategy(dns.DomainStrategyUseIPv4):
@@ -855,13 +783,11 @@ func setRoutingOptions(options *option.Options, opt *RostovVPNOptions) {
 		}
 		// "prefer_ipv4", "prefer_ipv6", "force_ipv4", "force_ipv6".
 	}
-	// fmt.Println("[setRoutingOptions] !!! Rules\n", routeRules, "\n !!! [setRoutingOptions]")
 
 	options.Route.Rules = append(options.Route.Rules, routeRules...)
 	options.Route.RuleSet = append(options.Route.RuleSet, rulesets...)
 
 	if opt.EnableDNSRouting {
-		// fmt.Println("[setRoutingOptions] !!! dnsRules\n", dnsRules, "\n !!! [setRoutingOptions]")
 
 		options.DNS.Rules = append(options.DNS.Rules, dnsRules...)
 	}
@@ -955,16 +881,6 @@ func newDNSRouteRule(rule option.DefaultDNSRule, server string) option.DNSRule {
 	return option.DNSRule{Type: C.RuleTypeDefault, DefaultOptions: rule}
 }
 
-func newDNSPredefinedRule(rule option.DefaultDNSRule, rcode option.DNSRCode) option.DNSRule {
-	rule.DNSRuleAction = option.DNSRuleAction{
-		Action: C.RuleActionTypePredefined,
-		PredefinedOptions: option.DNSRouteActionPredefined{
-			Rcode: &rcode, // например: "SUCCESS", "REFUSED", "NXDOMAIN"
-		},
-	}
-	return option.DNSRule{Type: C.RuleTypeDefault, DefaultOptions: rule}
-}
-
 // ----- TLS tricks injection for DoH (dns-trick-direct) -----
 func hasTLSTricks(opt *RostovVPNOptions) bool {
 	if opt == nil {
@@ -977,7 +893,7 @@ func hasTLSTricks(opt *RostovVPNOptions) bool {
 // По умолчанию — только варнинг. Инъекцию не делаем, чтобы не сломать парсер.
 func warnIfTLSTricksRequestedButUnsupported(opt *RostovVPNOptions) {
 	if hasTLSTricks(opt) {
-		log.Println("[dns] TLS tricks (fragment/padding/mixed_sni_case) запрошены," +
+		fmt.Println("[dns] TLS tricks (fragment/padding/mixed_sni_case) запрошены," +
 			" но текущая сборка sing-box (xtls upstream) их не поддерживает на DNS-серверах; пропускаю.")
 	}
 }
@@ -1077,31 +993,6 @@ func addrPtr(value string) *badoption.Addr {
 	return &converted
 }
 
-func patchRostovVPNWarpFromConfigMap(obj outboundMap, opt RostovVPNOptions) outboundMap {
-	if opt.Warp.EnableWarp && opt.Warp.Mode == "proxy_over_warp" {
-		if obj.string("detour") == "" {
-			obj["detour"] = "rostovvpn-warp"
-		}
-	}
-	return obj
-}
-
-func getIPs(domains []string) []string {
-	res := []string{}
-	for _, d := range domains {
-		ips, err := net.LookupHost(d)
-		if err != nil {
-			continue
-		}
-		for _, ip := range ips {
-			if !strings.HasPrefix(ip, "10.") {
-				res = append(res, ip)
-			}
-		}
-	}
-	return res
-}
-
 func isBlockedDomain(domain string) bool {
 	if strings.HasPrefix("full:", domain) {
 		return false
@@ -1113,7 +1004,7 @@ func isBlockedDomain(domain string) bool {
 	}
 
 	// Print the IP addresses associated with the domain
-	log.Printf("IP addresses for %s:\n", domain)
+	fmt.Printf("IP addresses for %s:\n", domain)
 	for _, ip := range ips {
 		if strings.HasPrefix(ip, "10.") {
 			return true

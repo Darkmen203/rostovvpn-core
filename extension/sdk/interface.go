@@ -3,7 +3,6 @@ package sdk
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"runtime"
 	"strings"
@@ -27,13 +26,13 @@ func ParseConfig(rostovVPNSettings *config.RostovVPNOptions, configStr string) (
 		// Create a new request
 		req, err := http.NewRequest("GET", configPath, nil)
 		if err != nil {
-			log.Println("Error creating request:", err)
+			fmt.Println("Error creating request:", err)
 			return nil, err
 		}
 		req.Header.Set("User-Agent", "RostovVPN/2.3.1 ("+runtime.GOOS+") like ClashMeta v2ray sing-box")
 		resp, err := client.Do(req)
 		if err != nil {
-			log.Println("Error making GET request:", err)
+			fmt.Println("Error making GET request:", err)
 			return nil, err
 		}
 		defer resp.Body.Close()

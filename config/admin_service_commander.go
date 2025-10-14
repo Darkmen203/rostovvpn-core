@@ -87,7 +87,7 @@ func startTunnelRequestWithFailover(opt RostovVPNOptions, installService bool) {
 	if ok, _ := startTunnelRequest(opt, installService); !ok {
 		// Если упёрлись в «service is not running» — значит сервис ещё не успел подняться.
 		if err := waitForServiceReady(2 * time.Minute); err != nil {
-			log.Printf("Start Tunnel Failed: %v\n", err)
+			fmt.Printf("Start Tunnel Failed: %v\n", err)
 			return
 		}
 		// Повторяем запуск несколько раз с бэкоффом
@@ -97,7 +97,7 @@ func startTunnelRequestWithFailover(opt RostovVPNOptions, installService bool) {
 			}
 			time.Sleep(time.Duration(attempt+1) * time.Second)
 		}
-		log.Println("Start Tunnel Failed after service became ready")
+		fmt.Println("Start Tunnel Failed after service became ready")
 	}
 }
 
@@ -200,7 +200,7 @@ func runTunnelService(opt RostovVPNOptions) (bool, error) {
 	if err != nil {
 		// если установка недоступна, пытаемся запустить как «run» (также под UAC)
 		out, err = ExecuteCmd(executablePath, true, "tunnel", "run")
-		log.Println("Shell command executed (run):", out, err)
+		fmt.Println("Shell command executed (run):", out, err)
 		if err != nil {
 			return false, err
 		}

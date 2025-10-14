@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -56,14 +55,14 @@ func ToJson(opt option.Options) (string, error) {
 	b, err := singjson.MarshalContext(ctx, opt)
 	if err != nil {
 		// Отладка, если вдруг что-то не сериализуется
-		log.Println("[ToJson] MarshalContext failed:", err)
-		log.Println("[ToJson] Outbounds dump (type, tag, options type):")
+		fmt.Println("[ToJson] MarshalContext failed:", err)
+		fmt.Println("[ToJson] Outbounds dump (type, tag, options type):")
 		for i, ob := range opt.Outbounds {
 			optType := "nil"
 			if ob.Options != nil {
 				optType = fmt.Sprintf("%T", ob.Options)
 			}
-			log.Printf("  [%d] type=%s tag=%s options=%s\n", i, ob.Type, ob.Tag, optType)
+			fmt.Printf("  [%d] type=%s tag=%s options=%s\n", i, ob.Type, ob.Tag, optType)
 		}
 		// Фоллбэк — обычный encoder, чтобы хотя бы увидеть JSON
 		var buf bytes.Buffer
