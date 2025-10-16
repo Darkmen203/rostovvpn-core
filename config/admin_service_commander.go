@@ -20,9 +20,14 @@ const (
 	targetIP      = "127.0.0.1:18020"
 	startEndpoint = "/start"
 	stopEndpoint  = "/stop"
+	// keep in sync with v2/tunnel_platform_service.go (service.Config.Name)
+	macLaunchDaemonPath = "/Library/LaunchDaemons/RostovVPNTunnelService.plist"
 )
 
-var tunnelServiceRunning = false
+var (
+	tunnelServiceRunning   = false
+	tunnelServiceInstalled = false
+)
 
 func isSupportedOS() bool {
 	return runtime.GOOS == "windows" || runtime.GOOS == "linux"
@@ -62,7 +67,10 @@ func ActivateTunnelService(opt RostovVPNOptions) (bool, error) {
 }
 
 func DeactivateTunnelServiceForce() (bool, error) {
-	return stopTunnelRequest()
+	res, err := stopTunnelRequest()
+	tunnelServiceRunning = false
+	cleanupTunnelServiceArtifacts()
+	return res, err
 }
 
 func DeactivateTunnelService() (bool, error) {
@@ -70,17 +78,20 @@ func DeactivateTunnelService() (bool, error) {
 	// 	return true, nil
 	// }
 
+	var (
+		res bool
+		err error
+	)
 	if tunnelServiceRunning {
-		res, err := stopTunnelRequest()
-		if err != nil {
-			tunnelServiceRunning = false
-		}
-		return res, err
+		res, err = stopTunnelRequest()
 	} else {
 		go stopTunnelRequest()
+		res = true
 	}
 
-	return true, nil
+	tunnelServiceRunning = false
+	cleanupTunnelServiceArtifacts()
+	return res, err
 }
 
 func startTunnelRequestWithFailover(opt RostovVPNOptions, installService bool) {
@@ -209,6 +220,9 @@ func runTunnelService(opt RostovVPNOptions) (bool, error) {
 	if err := waitForServiceReady(2 * time.Minute); err != nil {
 		return false, err
 	}
+	if runtime.GOOS == "darwin" {
+		tunnelServiceInstalled = true
+	}
 	// 3) Когда сервис доступен, делаем Start
 	return startTunnelRequest(opt, false)
 }
@@ -228,4 +242,31 @@ func getTunnelServicePath() string {
 
 	abspath, _ := filepath.Abs(filepath.Join(binFolder, fullPath))
 	return abspath
+}
+
+func cleanupTunnelServiceArtifacts() {
+	if runtime.GOOS != "darwin" {
+		return
+	}
+	if !tunnelServiceInstalled && !macLaunchDaemonExists() {
+		return
+	}
+
+	executablePath := getTunnelServicePath()
+	if _, err := ExecuteCmd(executablePath, true, "tunnel", "uninstall"); err != nil {
+		fmt.Printf("Tunnel service uninstall failed: %v\n", err)
+	}
+	tunnelServiceInstalled = false
+}
+
+func macLaunchDaemonExists() bool {
+	if runtime.GOOS != "darwin" {
+		return false
+	}
+	if _, err := os.Stat(macLaunchDaemonPath); err == nil {
+		return true
+	} else if os.IsNotExist(err) {
+		return false
+	}
+	return true
 }
